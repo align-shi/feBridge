@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.febridge.tool.ToolMapper">
+    <select id="servers" resultType="map">SELECT * FROM mcp_server ORDER BY created_at DESC,id</select>
+    <select id="server" resultType="map">
+        SELECT * FROM mcp_server WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </select>
+    <insert id="saveServer">
+        INSERT INTO mcp_server(id,name,endpoint,token_ciphertext,enabled,timeout_seconds,result_limit,auth_type,auth_header)
+        VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},#{name},#{endpoint},#{cipher},#{enabled},#{timeout},#{limit},#{authType},#{authHeader})
+        ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,endpoint=EXCLUDED.endpoint,
+            token_ciphertext=EXCLUDED.token_ciphertext,enabled=EXCLUDED.enabled,
+            timeout_seconds=EXCLUDED.timeout_seconds,result_limit=EXCLUDED.result_limit,auth_type=EXCLUDED.auth_type,auth_header=EXCLUDED.auth_header
+    </insert>
+    <sql id="toolColumns">SELECT t.*,s.name AS server_name,s.enabled AS server_enabled FROM mcp_tool t JOIN mcp_server s ON s.id=t.server_id</sql>
+    <select id="tools" resultType="map"><include refid="toolColumns"/> ORDER BY s.name,t.name</select>
+    <select id="tool" resultType="map">
+        <include refid="toolColumns"/> WHERE t.id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </select>
+    <insert id="upsertTool">
+        INSERT INTO mcp_tool(id,server_id,name,description,input_schema)
+        VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},
+            #{serverId,typeHandler=com.febridge.persistence.UuidTypeHandler},#{name},#{description},CAST(#{schema} AS jsonb))
+        ON CONFLICT(server_id,name) DO UPDATE SET description=EXCLUDED.description,
+            input_schema=EXCLUDED.input_schema,discovered_at=CURRENT_TIMESTAMP,
+            available=TRUE,enabled=COALESCE(mcp_tool.enabled_override,TRUE)
+    </insert>
+    <update id="disableMissing">
+        UPDATE mcp_tool SET enabled=FALSE,available=FALSE
+        WHERE server_id=#{serverId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+          AND name NOT IN (SELECT jsonb_array_elements_text(CAST(#{names} AS jsonb)))
+    </update>
+    <update id="updatePolicy">
+        UPDATE mcp_tool SET enabled_override=#{enabled},enabled=(#{enabled} AND available)
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </update>
+    <select id="grants" resultType="map">
+        <include refid="toolColumns"/>
+        JOIN agent_mcp_grant g ON g.server_id=t.server_id
+        WHERE g.agent_id=#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        ORDER BY t.name,t.id
+    </select>
+    <select id="boundServers" resultType="map">
+        SELECT s.* FROM mcp_server s JOIN agent_mcp_grant g ON g.server_id=s.id
+        WHERE g.agent_id=#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler} ORDER BY s.name,s.id
+    </select>
+    <delete id="removeServerGrants">
+        DELETE FROM agent_mcp_grant WHERE agent_id=#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </delete>
+    <insert id="grantServer">
+        INSERT INTO agent_mcp_grant(agent_id,server_id)
+        VALUES(#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler},
+            #{serverId,typeHandler=com.febridge.persistence.UuidTypeHandler})
+    </insert>
+    <insert id="audit">
+        INSERT INTO tool_call_audit(id,agent_id,request_id,call_id,tool_id,tool_name,status,argument_fields)
+        VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},
+            #{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler},
+            #{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler},#{callId},
+            #{toolId,jdbcType=OTHER,typeHandler=com.febridge.persistence.UuidTypeHandler},#{name},'running',CAST(#{fields} AS jsonb))
+    </insert>
+    <update id="auditFields">
+        UPDATE tool_call_audit SET argument_fields=CAST(#{fields} AS jsonb)
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </update>
+    <update id="finishAudit">
+        UPDATE tool_call_audit SET status=#{status},result_size=#{size},error_code=#{code},duration_millis=#{duration}
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </update>
+    <select id="audits" resultType="map">
+        SELECT * FROM tool_call_audit
+        WHERE agent_id=#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+          AND request_id=#{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        ORDER BY created_at,id LIMIT 100
+    </select>
+</mapper>

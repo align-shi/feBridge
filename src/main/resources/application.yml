@@ -1,0 +1,46 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8081}
+  servlet:
+    session:
+      timeout: 12h
+      tracking-modes: cookie
+      cookie:
+        name: FEBRIDGE_SESSION
+        http-only: true
+        same-site: lax
+        secure: ${PLATFORM_COOKIE_SECURE:false}
+spring:
+  config:
+    import: "optional:file:./config/local.properties,optional:file:./config/secrets.properties,optional:file:./config/bootstrap-admin.properties"
+  application:
+    name: febridge-backend
+  datasource:
+    url: ${PLATFORM_DB_URL:jdbc:postgresql://localhost:5433/febridge}
+    username: ${PLATFORM_DB_USERNAME:febridge}
+    password: ${PLATFORM_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 10000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    default-statement-timeout: 30
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+platform:
+  auth:
+    bootstrap-enabled: ${PLATFORM_AUTH_BOOTSTRAP_ENABLED:true}
+    bootstrap-username: ${PLATFORM_ADMIN_USERNAME:admin}
+    bootstrap-password: ${PLATFORM_ADMIN_PASSWORD:}

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.febridge.model.ModelMapper">
+    <select id="providers" resultType="map">SELECT * FROM model_provider ORDER BY created_at DESC, id</select>
+    <select id="provider" resultType="map">
+        SELECT * FROM model_provider WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </select>
+    <insert id="insertProvider">
+        INSERT INTO model_provider(id,name,provider_type,base_url,api_key_ciphertext,enabled)
+        VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},#{name},#{type},#{url},#{cipher},#{enabled})
+    </insert>
+    <update id="updateProvider">
+        UPDATE model_provider SET name=#{name},api_key_ciphertext=#{cipher},enabled=#{enabled}
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </update>
+    <select id="models" resultType="map">SELECT * FROM model_definition ORDER BY created_at DESC,id</select>
+    <select id="model" resultType="map">
+        SELECT * FROM model_definition WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </select>
+    <insert id="insertModel">
+        INSERT INTO model_definition(id,provider_id,model_code,display_name,supports_tools,default_parameters,enabled)
+        VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},
+        #{providerId,typeHandler=com.febridge.persistence.UuidTypeHandler},#{code},#{name},#{tools},CAST(#{parameters} AS jsonb),#{enabled})
+    </insert>
+    <update id="updateModel">
+        UPDATE model_definition SET provider_id=#{providerId,typeHandler=com.febridge.persistence.UuidTypeHandler},
+        model_code=#{code},display_name=#{name},supports_tools=#{tools},default_parameters=CAST(#{parameters} AS jsonb),enabled=#{enabled}
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </update>
+</mapper>

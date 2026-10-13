@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.febridge.trace.RunTraceMapper">
+    <insert id="append">
+        INSERT INTO agent_run_event(agent_id,request_id,kind,summary,details)
+        VALUES(#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler},
+               #{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler},#{kind},#{summary},CAST(#{details} AS jsonb))
+    </insert>
+    <select id="events" resultType="map">
+        SELECT * FROM agent_run_event WHERE agent_id=#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        AND request_id=#{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        ORDER BY id LIMIT 100
+    </select>
+</mapper>

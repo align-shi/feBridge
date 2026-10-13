@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.febridge.user.UserMapper">
+    <resultMap id="user" type="com.febridge.user.UserDtos$UserRecord">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID" typeHandler="com.febridge.persistence.UuidTypeHandler"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="password_hash" javaType="java.lang.String"/>
+            <arg column="role" javaType="com.febridge.user.UserDtos$Role"/>
+            <arg column="enabled" javaType="_boolean"/>
+            <arg column="session_version" javaType="_long"/>
+            <arg column="failed_attempts" javaType="_int"/>
+            <arg column="locked" javaType="_boolean"/>
+            <arg column="created_at" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <sql id="columns">id,username,display_name,password_hash,role,enabled,session_version,
+        failed_attempts,COALESCE(locked_until > CURRENT_TIMESTAMP,FALSE) AS locked,
+        to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at</sql>
+    <select id="byUsername" resultMap="user">
+        SELECT <include refid="columns"/> FROM platform_user WHERE username=#{username}
+    </select>
+    <select id="lockByUsername" resultMap="user">
+        SELECT <include refid="columns"/> FROM platform_user WHERE username=#{username} FOR UPDATE
+    </select>
+    <select id="byId" resultMap="user">
+        SELECT <include refid="columns"/> FROM platform_user
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </select>
+    <select id="list" resultMap="user">
+        SELECT <include refid="columns"/> FROM platform_user ORDER BY created_at DESC LIMIT 500
+    </select>
+    <select id="count" resultType="int">SELECT COUNT(*) FROM platform_user</select>
+    <select id="enabledAdmins" resultType="int">
+        SELECT COUNT(*) FROM platform_user WHERE role='ADMIN' AND enabled=TRUE
+    </select>
+    <select id="lockChanges" resultType="string">SELECT pg_advisory_xact_lock(730221904)</select>
+    <insert id="insert">
+        INSERT INTO platform_user(id,username,display_name,password_hash,role)
+        VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},#{username},
+            #{displayName},#{passwordHash},#{role})
+    </insert>
+    <update id="update">
+        UPDATE platform_user SET display_name=#{displayName},role=#{role},enabled=#{enabled},
+        session_version=session_version+CASE WHEN role&lt;>#{role} OR enabled&lt;>#{enabled} THEN 1 ELSE 0 END,updated_at=CURRENT_TIMESTAMP
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </update>
+    <update id="password">
+        UPDATE platform_user SET password_hash=#{passwordHash},session_version=session_version+1,
+        failed_attempts=0,locked_until=NULL,updated_at=CURRENT_TIMESTAMP
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </update>
+    <update id="failedLogin">
+        UPDATE platform_user
+        SET failed_attempts=CASE WHEN locked_until IS NOT NULL AND locked_until &lt;= CURRENT_TIMESTAMP
+            THEN 1 ELSE failed_attempts+1 END,
+        locked_until=CASE WHEN failed_attempts>=9 AND (locked_until IS NULL OR locked_until > CURRENT_TIMESTAMP)
+            THEN CURRENT_TIMESTAMP + INTERVAL '5 minutes' ELSE NULL END
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </update>
+    <update id="successfulLogin">
+        UPDATE platform_user SET failed_attempts=0,locked_until=NULL
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </update>
+</mapper>

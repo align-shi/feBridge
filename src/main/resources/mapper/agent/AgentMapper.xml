@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.febridge.agent.AgentMapper">
+    <resultMap id="agent" type="com.febridge.agent.AgentDefinition">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"
+                   typeHandler="com.febridge.persistence.UuidTypeHandler"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="system_prompt" javaType="java.lang.String"/>
+            <arg column="model_config" javaType="tools.jackson.databind.JsonNode"
+                 typeHandler="com.febridge.persistence.JsonbTypeHandler"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+        <arg column="model_id" javaType="java.util.UUID" typeHandler="com.febridge.persistence.UuidTypeHandler"/>
+        </constructor>
+    </resultMap>
+    <insert id="insert">
+        INSERT INTO agent_definition(id, name, description, system_prompt, model_config, created_at, model_id)
+        VALUES (#{id, jdbcType=OTHER, typeHandler=com.febridge.persistence.UuidTypeHandler}, #{name}, #{description}, #{systemPrompt},
+                #{modelConfig, jdbcType=OTHER, typeHandler=com.febridge.persistence.JsonbTypeHandler},
+                #{createdAt}, #{modelId,jdbcType=OTHER,typeHandler=com.febridge.persistence.UuidTypeHandler})
+    </insert>
+    <select id="findById" resultMap="agent">
+        SELECT id, name, description, system_prompt, model_config, created_at, model_id
+        FROM agent_definition WHERE id = #{id, jdbcType=OTHER, typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </select>
+    <select id="findRecent" resultMap="agent">
+        SELECT id, name, description, system_prompt, model_config, created_at, model_id
+        FROM agent_definition ORDER BY created_at DESC, id LIMIT 100
+    </select>
+<update id="bind">UPDATE agent_definition SET model_id=#{modelId,typeHandler=com.febridge.persistence.UuidTypeHandler},model_config=#{parameters,jdbcType=OTHER,typeHandler=com.febridge.persistence.JsonbTypeHandler} WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}</update>
+</mapper>

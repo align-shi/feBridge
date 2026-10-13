@@ -1,0 +1,17 @@
+target/
+.env
+.m2/
+*.log
+config/local.properties
+
+.idea/
+*.iml
+
+config/secrets.properties
+
+config/bootstrap-admin.properties
+
+# Local configuration and credentials
+config/
+.env.*
+!.env.example

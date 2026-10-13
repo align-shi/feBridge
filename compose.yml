@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:18.6
+    environment:
+      POSTGRES_DB: febridge
+      POSTGRES_USER: febridge
+      POSTGRES_PASSWORD: ${PLATFORM_DB_PASSWORD:?Set PLATFORM_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - febridge_pg_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U febridge -d febridge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  febridge_pg_data:

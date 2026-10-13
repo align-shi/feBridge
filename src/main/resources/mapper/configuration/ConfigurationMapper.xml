@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.febridge.configuration.ConfigurationMapper">
+    <update id="profile">
+        UPDATE agent_definition SET name=#{input.name},description=#{input.description},system_prompt=#{input.systemPrompt}
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </update>
+    <select id="skills" resultType="map">SELECT * FROM skill_definition ORDER BY updated_at DESC,id</select>
+    <select id="skill" resultType="map">
+        SELECT * FROM skill_definition WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </select>
+    <insert id="saveSkill">
+        INSERT INTO skill_definition(id,name,description,instructions,enabled)
+        VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},#{input.name},
+               #{input.description},#{input.instructions},#{input.enabled})
+        ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,
+            instructions=EXCLUDED.instructions,enabled=EXCLUDED.enabled,updated_at=CURRENT_TIMESTAMP
+    </insert>
+    <select id="boundSkills" resultType="map">
+        SELECT s.* FROM skill_definition s JOIN agent_skill_grant g ON g.skill_id=s.id
+        WHERE g.agent_id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        ORDER BY g.position,s.id
+    </select>
+    <delete id="clearSkills">
+        DELETE FROM agent_skill_grant WHERE agent_id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </delete>
+    <insert id="bindSkill">
+        INSERT INTO agent_skill_grant(agent_id,skill_id,position)
+        VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},
+               #{skillId,typeHandler=com.febridge.persistence.UuidTypeHandler},#{position})
+    </insert>
+    <select id="rules" resultType="string">
+        SELECT rules::text FROM agent_execution_rule WHERE agent_id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </select>
+    <insert id="saveRules">
+        INSERT INTO agent_execution_rule(agent_id,rules)
+        VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},CAST(#{rules} AS jsonb))
+        ON CONFLICT(agent_id) DO UPDATE SET rules=EXCLUDED.rules
+    </insert>
+</mapper>

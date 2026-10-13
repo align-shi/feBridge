@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.febridge.conversation.ConversationMapper">
+    <sql id="sessionFilter">
+        id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        AND agent_id=#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </sql>
+    <select id="sessions" resultType="map">
+        SELECT * FROM chat_session
+        WHERE agent_id=#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        ORDER BY updated_at DESC, id LIMIT 100
+    </select>
+    <select id="session" resultType="map">
+        SELECT * FROM chat_session WHERE <include refid="sessionFilter"/>
+    </select>
+    <select id="lockSession" resultType="map" useCache="false" flushCache="true">
+        SELECT * FROM chat_session WHERE <include refid="sessionFilter"/> FOR UPDATE
+    </select>
+    <insert id="createSession">
+        INSERT INTO chat_session(id,agent_id)
+        VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},
+               #{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler})
+    </insert>
+    <select id="turns" resultType="map">
+        SELECT * FROM (
+            SELECT * FROM chat_turn
+            WHERE session_id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+            ORDER BY sequence DESC LIMIT 100
+        ) recent ORDER BY sequence
+    </select>
+    <select id="context" resultType="map">
+        SELECT * FROM (
+            SELECT * FROM chat_turn
+            WHERE session_id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+              AND status='completed'
+            ORDER BY sequence DESC LIMIT 10
+        ) recent ORDER BY sequence
+    </select>
+    <select id="turn" resultType="map">
+        SELECT * FROM chat_turn WHERE id=#{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </select>
+    <update id="interruptPending">
+        UPDATE chat_turn SET status='failed',error_message='上次生成已中断，请重新发送',
+            completed_at=CURRENT_TIMESTAMP
+        WHERE session_id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+          AND status='pending'
+    </update>
+    <insert id="insertTurn">
+        INSERT INTO chat_turn(id,session_id,user_content,status)
+        VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},
+            #{sessionId,typeHandler=com.febridge.persistence.UuidTypeHandler},#{content},'pending')
+    </insert>
+    <update id="start">
+        UPDATE chat_session
+        SET active_request=#{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler},
+            locked_until=CURRENT_TIMESTAMP + INTERVAL '5 minutes',
+            title=CASE WHEN title='新会话' THEN #{title} ELSE title END,
+            updated_at=CURRENT_TIMESTAMP
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </update>
+    <update id="finish">
+        UPDATE chat_turn SET status='completed',assistant_content=#{answer.content},
+            model_name=#{answer.model},provider_name=#{answer.provider},
+            prompt_tokens=#{answer.usage.promptTokens},completion_tokens=#{answer.usage.completionTokens},
+            total_tokens=#{answer.usage.totalTokens},duration_millis=#{answer.durationMillis},
+            completed_at=CURRENT_TIMESTAMP
+        WHERE id=#{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler} AND status='pending'
+    </update>
+    <update id="fail">
+        UPDATE chat_turn SET status='failed',error_message=#{error},completed_at=CURRENT_TIMESTAMP
+        WHERE id=#{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler} AND status='pending'
+    </update>
+    <update id="release">
+        UPDATE chat_session SET active_request=NULL,locked_until=NULL,updated_at=CURRENT_TIMESTAMP
+        WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+          AND active_request=#{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </update>
+</mapper>
