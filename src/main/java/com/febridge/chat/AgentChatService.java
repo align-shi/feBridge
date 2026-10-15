@@ -187,7 +187,7 @@ public class AgentChatService {
             agentId,
             requestId,
             "CONTEXT_PREPARED",
-            "已组装提示词、Skills、知识库和可用工具",
+            "已组装草稿提示词、Skills、知识库和可用工具",
             java.util.Map.of(
                 "durationMillis",
                 elapsed(start),
@@ -215,6 +215,8 @@ public class AgentChatService {
                         )
                     )
                     .toList(),
+                "executionSource",
+                "DRAFT",
                 "knowledgeBases",
                 knowledgeBases
                     .stream()

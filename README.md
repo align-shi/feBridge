@@ -12,6 +12,7 @@
 ## 当前功能
 
 - 智能体创建与编辑、系统提示词、模型参数与执行规则。
+- 草稿与版本管理：发布配置快照、历史差异对比、恢复草稿和切换当前发布版本；工作台继续用于草稿调试。
 - DeepSeek、智谱、通义千问、Kimi、豆包等供应商预设及自定义兼容接口，支持模型管理和工具调用能力测试。
 - 渐进式 Skills：先提供名称与描述，模型按需加载 SKILL.md 和 references、assets、scripts 资源；scripts 暂不执行。
 - MCP Streamable HTTP 接入、工具发现、自定义鉴权请求头。
@@ -193,6 +194,7 @@ npm run build --prefix web
 - [长期记忆与三种模式](docs/long-term-memory.md)
 - [知识库、文档入库与检索](docs/knowledge-base.md)
 - [提示词、Skills 与执行规则](docs/agent-configuration.md)
+- [智能体草稿与版本管理](docs/agent-versions.md)
 - [渐进式 Skills 与资源文件](docs/progressive-skills.md)
 - [MCP 与 ReAct](docs/mcp-tools.md)
 - [调用轨迹与用量统计](docs/observability.md)

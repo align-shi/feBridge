@@ -29,4 +29,5 @@
         FROM agent_definition ORDER BY created_at DESC, id LIMIT 100
     </select>
 <update id="bind">UPDATE agent_definition SET model_id=#{modelId,typeHandler=com.febridge.persistence.UuidTypeHandler},model_config=#{parameters,jdbcType=OTHER,typeHandler=com.febridge.persistence.JsonbTypeHandler} WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}</update>
+    <select id="lock" resultMap="agent">SELECT * FROM agent_definition WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler} FOR UPDATE</select>
 </mapper>

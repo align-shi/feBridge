@@ -153,12 +153,8 @@ function AgentDetail({ id, initial, onClose, onUpdated }: { id: string; initial:
   }, [id, initial])
 
   return <section className="agent-workbench" aria-label="智能体详情">
-    <div className="workbench-heading">
-      <span>对话工作台</span>
-      <button className="button secondary" onClick={onClose}>← 返回智能体列表</button>
-    </div>
     {error && <div className="error" role="alert">{error}</div>}
-    <AgentRuntime key={agent.id} agent={agent} onBound={next => { setAgent(next); onUpdated(next) }} />
+    <AgentRuntime key={agent.id} agent={agent} onClose={onClose} onBound={next => { setAgent(next); onUpdated(next) }} />
   </section>
 }
 function CreateForm({ onCancel, onCreated }: { onCancel: () => void; onCreated: (agent: Agent) => void }) {

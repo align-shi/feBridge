@@ -297,3 +297,41 @@ export const knowledgeApi = {
   bound: (id: string) => request<KnowledgeBase[]>('/api/agents/' + encodeURIComponent(id) + '/knowledge-bases'),
   bind: (id: string, knowledgeBaseIds: string[]) => request<KnowledgeBase[]>('/api/agents/' + encodeURIComponent(id) + '/knowledge-bases', { method: 'PUT', body: JSON.stringify({ knowledgeBaseIds }) }),
 }
+
+export interface AgentVersionSnapshot {
+  schemaVersion: number
+  name: string
+  description: string
+  systemPrompt: string
+  modelId: string | null
+  parameters: Record<string, unknown>
+  rules: ExecutionRules
+  skillIds: string[]
+  mcpServerIds: string[]
+  knowledgeBaseIds: string[]
+  memoryMode: MemoryMode
+}
+export interface AgentVersion {
+  id: string
+  number: number
+  note: string
+  fingerprint: string
+  publishedBy: string
+  createdAt: string
+}
+export interface AgentVersionState {
+  draft: AgentVersionSnapshot
+  fingerprint: string
+  activeVersionId: string | null
+  changed: boolean
+  versions: AgentVersion[]
+}
+export interface AgentVersionDetail { version: AgentVersion; snapshot: AgentVersionSnapshot }
+const versionPath = (id: string) => '/api/agents/' + encodeURIComponent(id) + '/versions'
+export const versionApi = {
+  state: (id: string, signal?: AbortSignal) => request<AgentVersionState>(versionPath(id), { signal }),
+  detail: (id: string, version: string) => request<AgentVersionDetail>(versionPath(id) + '/' + encodeURIComponent(version)),
+  publish: (id: string, note: string, expectedFingerprint: string) => request<AgentVersionState>(versionPath(id), { method: 'POST', body: JSON.stringify({ note, expectedFingerprint }) }),
+  activate: (id: string, version: string) => request<AgentVersionState>(versionPath(id) + '/' + encodeURIComponent(version) + '/activate', { method: 'POST' }),
+  restore: (id: string, version: string, expectedFingerprint: string) => request<AgentVersionState>(versionPath(id) + '/' + encodeURIComponent(version) + '/restore', { method: 'POST', body: JSON.stringify({ expectedFingerprint }) }),
+}

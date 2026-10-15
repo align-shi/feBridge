@@ -30,7 +30,7 @@ public class AgentConfiguration {
 
     @Transactional
     public AgentDefinition profile(UUID id, @NotNull @Valid Profile input) {
-        agents.findById(id);
+        agents.lock(id);
         var normalized = new Profile(
             input.name().strip(),
             input.description() == null ? "" : input.description(),
@@ -86,7 +86,7 @@ public class AgentConfiguration {
 
     @Transactional
     public List<Skill> bind(UUID id, @NotNull @Valid SkillBinding input) {
-        agents.findById(id);
+        agents.lock(id);
         var ids = new LinkedHashSet<>(input.skillIds());
         if (ids.size() != input.skillIds().size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能重复绑定 Skill");
@@ -112,7 +112,7 @@ public class AgentConfiguration {
 
     @Transactional
     public Rules saveRules(UUID id, @NotNull @Valid Rules input) {
-        agents.findById(id);
+        agents.lock(id);
         mapper.saveRules(id, json.writeValueAsString(input));
         return rules(id);
     }

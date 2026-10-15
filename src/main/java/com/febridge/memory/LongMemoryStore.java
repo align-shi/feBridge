@@ -13,9 +13,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class LongMemoryStore {
 
     private final LongMemoryMapper mapper;
+    private final com.febridge.agent.AgentService agents;
 
-    public LongMemoryStore(LongMemoryMapper mapper) {
+    public LongMemoryStore(LongMemoryMapper mapper, com.febridge.agent.AgentService agents) {
         this.mapper = mapper;
+        this.agents = agents;
     }
 
     public static Map<String, Object> scope(UUID owner, UUID agent) {
@@ -55,6 +57,7 @@ public class LongMemoryStore {
 
     @Transactional
     public void setMode(UUID owner, UUID agent, MemoryMode mode) {
+        agents.lock(agent);
         var args = scope(owner, agent);
         mapper.ensure(args);
         mapper.lockPolicy(args);

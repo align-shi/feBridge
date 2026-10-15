@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Param;
 public interface AgentMapper {
     int insert(AgentDefinition agent);
     AgentDefinition findById(@Param("id") UUID id);
+    AgentDefinition lock(@Param("id") UUID id);
     List<AgentDefinition> findRecent();
     int bind(
         @Param("id") UUID id,

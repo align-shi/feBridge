@@ -155,7 +155,7 @@ public class ToolRegistry {
 
     @Transactional
     public List<ServerView> bindServers(UUID agentId, ServerBinding input) {
-        agents.findById(agentId);
+        agents.lock(agentId);
         var ids = new LinkedHashSet<>(input.serverIds());
         if (ids.size() > 32 || ids.contains(null)) {
             throw new ResponseStatusException(

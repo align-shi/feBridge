@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.febridge.version.VersionMapper">
+    <select id="versions" resultType="map">
+        SELECT id,number,note,fingerprint,published_by,created_at FROM agent_version
+        WHERE agent_id=CAST(#{agent} AS uuid) ORDER BY number DESC
+    </select>
+    <select id="version" resultType="map">
+        SELECT * FROM agent_version WHERE agent_id=CAST(#{agent} AS uuid) AND id=CAST(#{version} AS uuid)
+    </select>
+    <select id="active" resultType="map">
+        SELECT v.* FROM agent_publication p JOIN agent_version v ON v.id=p.version_id
+        WHERE p.agent_id=CAST(#{agent} AS uuid)
+    </select>
+    <select id="mcpBindings" resultType="string">
+        SELECT server_id::text FROM agent_mcp_grant WHERE agent_id=CAST(#{agent} AS uuid) ORDER BY server_id
+    </select>
+    <select id="knowledgeBindings" resultType="string">
+        SELECT kb_id::text FROM agent_knowledge_base WHERE agent_id=CAST(#{agent} AS uuid) ORDER BY kb_id
+    </select>
+    <insert id="insert">
+        INSERT INTO agent_version(id,agent_id,number,note,snapshot,fingerprint,published_by)
+        VALUES(CAST(#{version} AS uuid),CAST(#{agent} AS uuid),#{number},#{note},
+            CAST(#{snapshot} AS jsonb),#{fingerprint},CAST(#{author} AS uuid))
+    </insert>
+    <insert id="activate">
+        INSERT INTO agent_publication(agent_id,version_id)
+        VALUES(CAST(#{agent} AS uuid),CAST(#{version} AS uuid))
+        ON CONFLICT(agent_id) DO UPDATE SET version_id=EXCLUDED.version_id
+    </insert>
+</mapper>

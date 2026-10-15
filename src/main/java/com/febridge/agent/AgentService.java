@@ -66,9 +66,17 @@ public class AgentService {
         return agent;
     }
 
+    public AgentDefinition lock(UUID id) {
+        var agent = mapper.lock(id);
+        if (agent == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Agent not found");
+        }
+        return agent;
+    }
+
     @Transactional
     public AgentDefinition bind(UUID id, com.febridge.model.ModelDtos.Binding input) {
-        findById(id);
+        lock(id);
         registry.availableModel(input.modelId());
         mapper.bind(id, input.modelId(), registry.parameters(input.parameters()));
         return findById(id);

@@ -13,9 +13,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class KnowledgeStore {
 
     private final KnowledgeMapper mapper;
+    private final com.febridge.agent.AgentService agents;
 
-    public KnowledgeStore(KnowledgeMapper mapper) {
+    public KnowledgeStore(KnowledgeMapper mapper, com.febridge.agent.AgentService agents) {
         this.mapper = mapper;
+        this.agents = agents;
     }
 
     public static Map<String, Object> args(UUID owner, UUID kb) {
@@ -114,6 +116,7 @@ public class KnowledgeStore {
 
     @Transactional
     public List<Map<String, Object>> bind(UUID owner, UUID agent, List<UUID> ids) {
+        agents.lock(agent);
         for (UUID id : ids) {
             require(owner, id, false);
         }
