@@ -13,7 +13,13 @@ public interface RunTraceMapper {
         @Param("requestId") UUID requestId,
         @Param("kind") String kind,
         @Param("summary") String summary,
-        @Param("details") String details
+        @Param("details") String details,
+        @Param("ownerId") UUID ownerId
+    );
+    int ownedRequest(
+        @Param("agentId") UUID agentId,
+        @Param("requestId") UUID requestId,
+        @Param("ownerId") UUID ownerId
     );
     List<Map<String, Object>> events(
         @Param("agentId") UUID agentId,

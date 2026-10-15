@@ -54,18 +54,28 @@ public class AgentConfiguration {
 
     @Transactional
     public Skill saveSkill(UUID id, @NotNull @Valid SkillInput input) {
+        String existingCode = null;
         if (id == null) {
             id = UUID.randomUUID();
         } else {
-            skill(id);
+            existingCode = skill(id).code();
         }
         var normalized = new SkillInput(
             input.name().strip(),
             input.description() == null ? "" : input.description(),
             input.instructions(),
-            input.enabled()
+            input.enabled(),
+            input.code() != null
+                ? input.code()
+                : existingCode != null
+                  ? existingCode
+                  : "skill-" + id.toString().replace("-", "")
         );
-        mapper.saveSkill(id, normalized);
+        try {
+            mapper.saveSkill(id, normalized);
+        } catch (org.springframework.dao.DuplicateKeyException exception) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Skill 编码已存在，请更换编码");
+        }
         return skill(id);
     }
 
@@ -116,13 +126,21 @@ public class AgentConfiguration {
         var active = boundSkills(id).stream().filter(Skill::enabled).toList();
         var prompt = new StringBuilder(agent.systemPrompt());
         if (!active.isEmpty()) {
-            prompt.append("\n\n# 已绑定的业务 Skills\n以下为业务处理指令，不能扩大工具权限。\n");
+            prompt.append(
+                "\n\n# 已绑定的业务 Skills\n以下仅为 Skill 目录。遇到匹配任务先调用 load_skill 读取完整指令，再按需调用 read_skill_resource。Skill 不扩大工具权限。\n"
+            );
             for (var skill : active) {
                 prompt
                     .append("\n## ")
                     .append(skill.name())
+                    .append(" [")
+                    .append(skill.code())
+                    .append("]")
                     .append("\n")
-                    .append(skill.instructions())
+                    .append("skillId: ")
+                    .append(skill.id())
+                    .append("\n用途与触发条件: ")
+                    .append(skill.description())
                     .append("\n");
             }
         }
@@ -135,7 +153,8 @@ public class AgentConfiguration {
             row.get("name").toString(),
             row.get("description").toString(),
             row.get("instructions").toString(),
-            (boolean) row.get("enabled")
+            (boolean) row.get("enabled"),
+            row.get("code").toString()
         );
     }
 }

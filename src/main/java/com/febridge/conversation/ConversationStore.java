@@ -6,6 +6,8 @@ import com.febridge.agent.AgentService;
 import com.febridge.chat.ChatDtos.Answer;
 import com.febridge.chat.ChatDtos.Usage;
 import com.febridge.chat.OpenAiChatClient.PromptMessage;
+import com.febridge.memory.MemoryStore;
+import com.febridge.user.AuthController;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -23,22 +25,35 @@ public class ConversationStore {
 
     private final ConversationMapper mapper;
     private final AgentService agents;
+    private final MemoryStore memory;
+    private final com.febridge.memory.LongMemoryStore longMemory;
 
-    public ConversationStore(ConversationMapper mapper, AgentService agents) {
+    public ConversationStore(
+        ConversationMapper mapper,
+        AgentService agents,
+        MemoryStore memory,
+        com.febridge.memory.LongMemoryStore longMemory
+    ) {
         this.mapper = mapper;
         this.agents = agents;
+        this.memory = memory;
+        this.longMemory = longMemory;
     }
 
     public List<Session> list(UUID agentId) {
         agents.findById(agentId);
-        return mapper.sessions(agentId).stream().map(this::sessionView).toList();
+        return mapper
+            .sessions(agentId, AuthController.current().id())
+            .stream()
+            .map(this::sessionView)
+            .toList();
     }
 
     @Transactional
     public Session create(UUID agentId) {
         agents.findById(agentId);
         UUID id = UUID.randomUUID();
-        mapper.createSession(id, agentId);
+        mapper.createSession(id, agentId, AuthController.current().id());
         return sessionView(requireSession(agentId, id, false));
     }
 
@@ -87,7 +102,11 @@ public class ConversationStore {
                 )
             );
         }
-        return new History(sessionView(session), messages);
+        return new History(
+            sessionView(session),
+            messages,
+            memory.view(sessionId, cutoff(mapper.context(sessionId)))
+        );
     }
 
     // Lock only during short state transitions, never during a model HTTP call.
@@ -106,7 +125,12 @@ public class ConversationStore {
                 );
             }
             if ("completed".equals(existing.get("status"))) {
-                return new Begin(answer(existing), List.of());
+                return new Begin(
+                    answer(existing),
+                    List.of(),
+                    0,
+                    com.febridge.memory.MemoryMode.NONE
+                );
             }
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,
@@ -117,14 +141,19 @@ public class ConversationStore {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话正在生成回答");
         }
         mapper.interruptPending(sessionId);
-        List<PromptMessage> context = buildContext(mapper.context(sessionId));
+        var mode = longMemory.mode(AuthController.current().id(), agentId);
+        var contextRows =
+            mode == com.febridge.memory.MemoryMode.NONE
+                ? List.<Map<String, Object>>of()
+                : mapper.context(sessionId);
+        List<PromptMessage> context = buildContext(contextRows);
         mapper.insertTurn(request.requestId(), sessionId, request.message());
         String title = request.message().strip().replaceAll("\\s+", " ");
         if (title.length() > 40) {
             title = title.substring(0, 40);
         }
         mapper.start(sessionId, request.requestId(), title);
-        return new Begin(null, context);
+        return new Begin(null, context, cutoff(contextRows), mode);
     }
 
     @Transactional
@@ -134,6 +163,7 @@ public class ConversationStore {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "请求已过期，请刷新会话");
         }
         mapper.finish(requestId, answer);
+        longMemory.enqueue(AuthController.current().id(), agentId, requestId);
         mapper.release(sessionId, requestId);
     }
 
@@ -143,10 +173,15 @@ public class ConversationStore {
         mapper.release(sessionId, requestId);
     }
 
-    public record Begin(Answer existingAnswer, List<PromptMessage> context) {}
+    public record Begin(
+        Answer existingAnswer,
+        List<PromptMessage> context,
+        long summarizeThrough,
+        com.febridge.memory.MemoryMode mode
+    ) {}
 
-    static List<PromptMessage> buildContext(List<Map<String, Object>> rows) {
-        int remaining = 24000;
+    private static List<Map<String, Object>> recentRows(List<Map<String, Object>> rows) {
+        int remaining = 20000;
         var selected = new ArrayList<Map<String, Object>>();
         for (int index = rows.size() - 1; index >= 0; index--) {
             var row = rows.get(index);
@@ -159,8 +194,22 @@ public class ConversationStore {
             remaining -= length;
             selected.addFirst(row);
         }
+        return selected;
+    }
+
+    static long cutoff(List<Map<String, Object>> rows) {
+        if (rows.isEmpty()) {
+            return 0;
+        }
+        var recent = recentRows(rows);
+        var boundary = recent.isEmpty() ? rows.getLast() : recent.getFirst();
+        long sequence = ((Number) boundary.get("sequence")).longValue();
+        return recent.isEmpty() ? sequence : sequence - 1;
+    }
+
+    static List<PromptMessage> buildContext(List<Map<String, Object>> rows) {
         var messages = new ArrayList<PromptMessage>();
-        for (var row : selected) {
+        for (var row : recentRows(rows)) {
             messages.add(new PromptMessage("user", row.get("user_content").toString()));
             messages.add(new PromptMessage("assistant", row.get("assistant_content").toString()));
         }
@@ -168,7 +217,9 @@ public class ConversationStore {
     }
 
     private Map<String, Object> requireSession(UUID agentId, UUID id, boolean lock) {
-        var row = lock ? mapper.lockSession(id, agentId) : mapper.session(id, agentId);
+        var row = lock
+            ? mapper.lockSession(id, agentId, AuthController.current().id())
+            : mapper.session(id, agentId, AuthController.current().id());
         if (row == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "会话不存在");
         }
@@ -179,6 +230,7 @@ public class ConversationStore {
         return new Session(
             uuid(row, "id"),
             uuid(row, "agent_id"),
+            uuid(row, "owner_user_id"),
             row.get("title").toString(),
             time(row, "created_at"),
             time(row, "updated_at"),

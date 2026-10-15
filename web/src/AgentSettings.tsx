@@ -54,7 +54,7 @@ export default function AgentSettings({ agent, disabled, onSaved, onSaving }: {
       </fieldset></form>
     </details>
     <details className="agent-settings"><summary>绑定 Skills · {ids.length} 个</summary>
-      <p className="helper">最多绑定 8 个，按下列顺序加入系统提示词。停用的 Skill 不参与运行。</p>
+      <p className="helper">最多绑定 8 个，按下列顺序提供名称与用途；完整指令和资源由模型按需加载。停用的 Skill 不参与运行。</p>
       <fieldset disabled={disabled || busy || !loaded}>
         {skills.map(skill => <label className="tool-choice" key={skill.id}>
           <input type="checkbox" checked={ids.includes(skill.id)}

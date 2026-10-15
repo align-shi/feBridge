@@ -11,6 +11,10 @@ server:
         same-site: lax
         secure: ${PLATFORM_COOKIE_SECURE:false}
 spring:
+  task:
+    scheduling:
+      pool:
+        size: 2
   config:
     import: "optional:file:./config/local.properties,optional:file:./config/secrets.properties,optional:file:./config/bootstrap-admin.properties"
   application:

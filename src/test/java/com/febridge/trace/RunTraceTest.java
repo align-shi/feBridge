@@ -59,7 +59,8 @@ class RunTraceTest {
             eq(request),
             eq("TOOL_RESULT"),
             eq("结果"),
-            captured.capture()
+            captured.capture(),
+            isNull()
         );
         assertFalse(captured.getValue().contains("must-not-leak"));
         assertTrue(captured.getValue().length() < 13000);

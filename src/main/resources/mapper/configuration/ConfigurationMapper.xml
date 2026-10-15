@@ -10,10 +10,10 @@
         SELECT * FROM skill_definition WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
     </select>
     <insert id="saveSkill">
-        INSERT INTO skill_definition(id,name,description,instructions,enabled)
+        INSERT INTO skill_definition(id,name,description,instructions,enabled,code)
         VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},#{input.name},
-               #{input.description},#{input.instructions},#{input.enabled})
-        ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,
+               #{input.description},#{input.instructions},#{input.enabled},#{input.code})
+        ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,code=EXCLUDED.code,
             instructions=EXCLUDED.instructions,enabled=EXCLUDED.enabled,updated_at=CURRENT_TIMESTAMP
     </insert>
     <select id="boundSkills" resultType="map">

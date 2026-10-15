@@ -2,10 +2,23 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.febridge.trace.RunTraceMapper">
     <insert id="append">
-        INSERT INTO agent_run_event(agent_id,request_id,kind,summary,details)
+        INSERT INTO agent_run_event(agent_id,request_id,kind,summary,details,owner_user_id)
         VALUES(#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler},
-               #{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler},#{kind},#{summary},CAST(#{details} AS jsonb))
+               #{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler},#{kind},#{summary},CAST(#{details} AS jsonb),#{ownerId,typeHandler=com.febridge.persistence.UuidTypeHandler})
     </insert>
+    <select id="ownedRequest" resultType="int">
+        SELECT CASE WHEN EXISTS(
+            SELECT 1 FROM chat_turn turn JOIN chat_session session ON session.id=turn.session_id
+            WHERE turn.id=#{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+                AND session.agent_id=#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+                AND session.owner_user_id=#{ownerId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        ) OR EXISTS(
+            SELECT 1 FROM agent_run_event WHERE
+                request_id=#{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+                AND agent_id=#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+                AND owner_user_id=#{ownerId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        ) THEN 1 ELSE 0 END
+    </select>
     <select id="events" resultType="map">
         SELECT * FROM agent_run_event WHERE agent_id=#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler}
         AND request_id=#{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler}

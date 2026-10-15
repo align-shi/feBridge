@@ -145,6 +145,8 @@ public class UserService {
     public void bootstrap(String username, String password) {
         mapper.lockChanges();
         if (mapper.count() != 0) {
+            mapper.claimLegacySessions();
+            mapper.claimLegacyEvents();
             return;
         }
         if (password == null || password.length() < 10 || password.length() > 128) {
@@ -162,6 +164,8 @@ public class UserService {
             passwords.encode(password),
             Role.ADMIN.name()
         );
+        mapper.claimLegacySessions();
+        mapper.claimLegacyEvents();
     }
 
     private String normalize(String username) {

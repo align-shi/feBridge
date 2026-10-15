@@ -5,6 +5,9 @@ import { agentApi, errorMessage } from './api'
 import type { Agent } from './api'
 import ModelSelect from './ModelSelect'
 import ChatWorkspace from './ChatWorkspace'
+import AgentKnowledgeBases from './AgentKnowledgeBases'
+import MemoryModeSelector from './MemoryModeSelector'
+import type { MemoryMode } from './api'
 import { AgentMcpServers } from './ToolManager'
 import AgentSettings from './AgentSettings'
 
@@ -25,6 +28,8 @@ export default function AgentRuntime({
   const [binding, setBinding] = useState(false)
   const [busy, setBusy] = useState(false)
   const [configSaving, setConfigSaving] = useState(false)
+  const [memoryMode, setMemoryMode] = useState<MemoryMode | null>(null)
+  const [memorySaving, setMemorySaving] = useState(false)
 
   async function bind(event: FormEvent) {
     event.preventDefault()
@@ -52,11 +57,11 @@ export default function AgentRuntime({
   }
 
   return <div className="runtime">
-    <AgentSettings agent={agent} disabled={binding || busy || configSaving} onSaved={onBound} onSaving={setConfigSaving} />
+    <AgentSettings agent={agent} disabled={binding || busy || configSaving || memorySaving} onSaved={onBound} onSaving={setConfigSaving} />
     <details className="agent-settings" open={!agent.modelId}>
       <summary>调用模型与参数{!agent.modelId && ' · 请先配置'}</summary>
       <form onSubmit={bind}>
-        <fieldset disabled={binding || busy || configSaving}>
+        <fieldset disabled={binding || busy || configSaving || memorySaving}>
           <ModelSelect value={modelId} onChange={setModelId} required />
           <label>智能体参数覆盖（JSON）<textarea
             className="code" rows={3} value={parameters}
@@ -68,7 +73,9 @@ export default function AgentRuntime({
     </details>
     {error && <div className="error" role="alert">{error}</div>}
     {notice && <div className="notice" role="status">{notice}</div>}
-    <AgentMcpServers agentId={agent.id} disabled={binding || busy || configSaving} />
-    <ChatWorkspace agent={agent} disabled={binding || configSaving} onBusy={setBusy} />
+    <AgentMcpServers agentId={agent.id} disabled={binding || busy || configSaving || memorySaving} />
+    <AgentKnowledgeBases key={agent.id + '-knowledge'} agentId={agent.id} disabled={binding || busy || configSaving || memorySaving} onSaving={setConfigSaving} />
+    <MemoryModeSelector key={agent.id} agentId={agent.id} disabled={binding || busy || configSaving || memorySaving} onChange={setMemoryMode} onSaving={setMemorySaving} />
+    <ChatWorkspace agent={agent} memoryMode={memoryMode} disabled={binding || configSaving || memorySaving} onBusy={setBusy} />
   </div>
 }

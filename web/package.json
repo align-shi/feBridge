@@ -11,7 +11,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test:trace": "node --experimental-strip-types --test tests/traceModel.test.ts",
-    "test:auth": "node --experimental-strip-types --test tests/authApi.test.ts"
+    "test:auth": "node --experimental-strip-types --test tests/authApi.test.ts",
+    "test:skills": "node --experimental-strip-types --test tests/skillFiles.test.ts"
   },
   "dependencies": {
     "react": "19.3.0",

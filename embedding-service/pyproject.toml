@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "febridge-embeddings"
+version = "0.1.0"
+description = "Local text embeddings service for feBridge"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "pydantic>=2.10,<3",
+  "uvicorn>=0.30,<1",
+  "python-dotenv>=1,<2",
+]
+
+[project.optional-dependencies]
+model = [
+  "sentence-transformers>=3.4,<6",
+  "transformers>=4.51,<5",
+  "torch>=2.6,<3",
+]
+dev = ["pytest>=8,<10", "httpx>=0.27,<1"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -4,7 +4,7 @@ import { durationText, tokenText } from './traceModel'
 import type { TraceModel, TraceNode } from './traceModel'
 
 const statusLabel = { running: '执行中', completed: '成功', failed: '失败', interrupted: '已中断' }
-const typeLabel = { agent: 'AGENT', context: 'CONTEXT', model: 'LLM', tool: 'TOOL', event: 'EVENT' }
+const typeLabel = { agent: 'AGENT', context: 'CONTEXT', model: 'LLM', tool: 'TOOL', event: 'EVENT', memory: 'MEMORY' }
 function JsonView({ value, empty }: { value: unknown; empty: string }) {
   return value === null || value === undefined
     ? <p className="trace-empty">{empty}</p>
@@ -18,9 +18,9 @@ function NodeDetails({ node, events }: { node: TraceNode; events: RunEvent[] }) 
     <p className="trace-action">{node.action}</p>
     <div className="trace-node-metrics">
       <div><small>耗时</small><strong>{durationText(node.duration)}</strong></div>
-      <div><small>输入 Token</small><strong>{node.type === 'model' || node.type === 'agent' ? tokenText(node.usage.input) : '—'}</strong></div>
-      <div><small>输出 Token</small><strong>{node.type === 'model' || node.type === 'agent' ? tokenText(node.usage.output) : '—'}</strong></div>
-      <div><small>总 Token</small><strong>{node.type === 'model' || node.type === 'agent' ? tokenText(node.usage.total) : '—'}</strong></div>
+      <div><small>输入 Token</small><strong>{node.type === 'model' || node.type === 'memory' || node.type === 'agent' ? tokenText(node.usage.input) : '—'}</strong></div>
+      <div><small>输出 Token</small><strong>{node.type === 'model' || node.type === 'memory' || node.type === 'agent' ? tokenText(node.usage.output) : '—'}</strong></div>
+      <div><small>总 Token</small><strong>{node.type === 'model' || node.type === 'memory' || node.type === 'agent' ? tokenText(node.usage.total) : '—'}</strong></div>
     </div>
     <dl className="trace-node-info">
       <dt>节点 ID</dt><dd>{node.id}</dd>
@@ -80,7 +80,7 @@ export default function TraceDialog({ requestId, trace, events, error, onClose }
           </select></div>
         <div className="trace-timeline-label"><span>调用树</span><span>时间分布</span></div>
         <div className="trace-node-list">
-          {trace.nodes.filter(item => filter === 'all' || (filter === 'failed' ? item.status === 'failed' : item.type === filter)).map(item => {
+          {trace.nodes.filter(item => filter === 'all' || (filter === 'failed' ? item.status === 'failed' : (item.type === filter || (filter === 'model' && item.type === 'memory')))).map(item => {
             const offset = Math.min(100, Math.max(0, (item.start - (root?.start ?? item.start)) / span * 100))
             const width = Math.min(100 - offset, Math.max(1, ((item.end ?? Date.now()) - item.start) / span * 100))
             return <button type="button" key={item.id} className={'trace-node-row ' + (selected === item.id ? 'selected ' : '') + item.status}
@@ -88,7 +88,7 @@ export default function TraceDialog({ requestId, trace, events, error, onClose }
               aria-pressed={selected === item.id} onClick={() => setSelected(item.id)}>
               <div className="trace-node-name"><span className={'trace-type ' + item.type}>{typeLabel[item.type]}</span><strong>{item.name}</strong></div>
               <div className="trace-node-subtitle"><span>{statusLabel[item.status]}</span><span>{durationText(item.duration)}</span>
-                {item.type === 'model' && <span>{tokenText(item.usage.total)} Token</span>}</div>
+                {(item.type === 'model' || item.type === 'memory') && <span>{tokenText(item.usage.total)} Token</span>}</div>
               <div className="trace-time-track"><span style={{ marginLeft: offset + '%', width: width + '%' }} /></div>
             </button>
           })}

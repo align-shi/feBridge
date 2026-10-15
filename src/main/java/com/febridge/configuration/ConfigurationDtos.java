@@ -18,15 +18,21 @@ public final class ConfigurationDtos {
         @NotBlank @Size(max = 100) String name,
         @Size(max = 1000) String description,
         @NotBlank @Size(max = 8000) String instructions,
-        boolean enabled
-    ) {}
+        boolean enabled,
+        @Size(max = 64) @Pattern(regexp = "^[a-z0-9]+(-[a-z0-9]+)*$") String code
+    ) {
+        public SkillInput(String name, String description, String instructions, boolean enabled) {
+            this(name, description, instructions, enabled, null);
+        }
+    }
 
     public record Skill(
         UUID id,
         String name,
         String description,
         String instructions,
-        boolean enabled
+        boolean enabled,
+        String code
     ) {}
 
     public enum FailurePolicy {

@@ -5,6 +5,7 @@ import type { FormEvent } from 'react'
 import { agentApi, errorMessage } from './api'
 import type { Agent } from './api'
 import ModelManager from './ModelManager'
+import KnowledgeManager from './KnowledgeManager'
 import ToolManager from './ToolManager'
 import SkillManager from './SkillManager'
 import ModelSelect from './ModelSelect'
@@ -14,7 +15,7 @@ import AccountMenu from './AccountMenu'
 import UserManager from './UserManager'
 import type { PlatformUser } from './api'
 
-type Page = 'agents' | 'models' | 'tools' | 'skills' | 'users'
+type Page = 'agents' | 'models' | 'tools' | 'skills' | 'users' | 'knowledge'
 type Route = { page: Page; agentId?: string }
 
 function readRoute(): Route {
@@ -22,9 +23,10 @@ function readRoute(): Route {
   const detail = hash.match(/^#\/agents\/([0-9a-f-]{36})$/i)
   if (detail) return { page: 'agents', agentId: detail[1] }
   if (/^#\/models(?:\/[0-9a-f-]{36})?$/i.test(hash)) return { page: 'models' }
+  if (hash === '#/knowledge') return { page: 'knowledge' }
   if (hash === '#/tools') return { page: 'tools' }
   if (hash === '#/users') return { page: 'users' }
-  if (hash === '#/skills') return { page: 'skills' }
+  if (/^#\/skills(?:\/new|\/[0-9a-f-]{36})?$/i.test(hash)) return { page: 'skills' }
   return { page: 'agents' }
 }
 
@@ -114,11 +116,12 @@ function Workspace({ user, onUserChanged, onSignedOut }: {
         <button className={`nav-item ${page === 'tools' ? '' : 'inactive'}`} onClick={() => navigate('tools')}>◇ MCP 工具管理</button></>}
       <button className={`nav-item ${page === 'skills' ? '' : 'inactive'}`} onClick={() => navigate('skills')}>◇ Skills 管理</button>
       {admin && <button className={`nav-item ${page === 'users' ? '' : 'inactive'}`} onClick={() => navigate('users')}>◇ 用户与角色</button>}
-      <div className="roadmap"><small>接下来</small><p>知识库与任务恢复</p><small>逐步连接知识、工具和业务系统。</small></div>
+      <button className={`nav-item ${page === 'knowledge' ? '' : 'inactive'}`} onClick={() => navigate('knowledge')}>◇ 知识库</button>
+      <div className="roadmap"><small>接下来</small><p>任务恢复与更多连接</p><small>逐步连接知识、工具和业务系统。</small></div>
       <AccountMenu user={user} onSignedOut={onSignedOut} />
     </aside>
-    <main><header className="topbar"><span>工作空间 <span className="divider">/</span> {page==="users"?"用户与角色":page==="skills"?"Skills 管理":page==="tools"?"MCP 工具管理":page==="models"?"模型管理":"智能体"}</span><span>feBridge · 0.1</span></header>
-      <div className="content">{page==="users"?<UserManager currentUser={user} onCurrentChanged={onUserChanged}/>:page==="skills"?<SkillManager/>:page==="tools"?<ToolManager/>:page==="models"?<ModelManager/>:<><div className="page-heading"><div><div className="eyebrow">AGENT STUDIO</div><h1>{creating ? '创建智能体' : selected ? selected.name : '我的智能体'}</h1><p>{creating ? '从角色和提示词开始，定义你的业务助手。' : selected ? selected.description : '把业务经验写进提示词，构建专属智能体。'}</p></div>{!creating && !selected && <button className="button primary" onClick={() => { setCreating(true); setNotice('') }}>＋ 创建智能体</button>}</div>
+    <main><header className="topbar"><span>工作空间 <span className="divider">/</span> {page==="knowledge"?"知识库":page==="users"?"用户与角色":page==="skills"?"Skills 管理":page==="tools"?"MCP 工具管理":page==="models"?"模型管理":"智能体"}</span><span>feBridge · 0.1</span></header>
+      <div className="content">{page==="knowledge"?<KnowledgeManager/>:page==="users"?<UserManager currentUser={user} onCurrentChanged={onUserChanged}/>:page==="skills"?<SkillManager/>:page==="tools"?<ToolManager/>:page==="models"?<ModelManager/>:<><div className="page-heading"><div><div className="eyebrow">AGENT STUDIO</div><h1>{creating ? '创建智能体' : selected ? selected.name : '我的智能体'}</h1><p>{creating ? '从角色和提示词开始，定义你的业务助手。' : selected ? selected.description : '把业务经验写进提示词，构建专属智能体。'}</p></div>{!creating && !selected && <button className="button primary" onClick={() => { setCreating(true); setNotice('') }}>＋ 创建智能体</button>}</div>
       {notice && <div className="notice" role="status">{notice}</div>}
       {creating ? <CreateForm onCancel={() => setCreating(false)} onCreated={agent => {
         navigate("agents", agent.id); setSelected(agent); setSearch(''); setNotice('智能体配置已保存。'); setRefresh(v => v + 1)

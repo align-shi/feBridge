@@ -13,6 +13,8 @@ public interface UserMapper {
     UserRecord byId(@Param("id") UUID id);
     List<UserRecord> list();
     int count();
+    int claimLegacySessions();
+    int claimLegacyEvents();
     int enabledAdmins();
     void lockChanges();
     int insert(

@@ -4,10 +4,12 @@
     <sql id="sessionFilter">
         id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
         AND agent_id=#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        AND owner_user_id=#{ownerId,typeHandler=com.febridge.persistence.UuidTypeHandler}
     </sql>
     <select id="sessions" resultType="map">
         SELECT * FROM chat_session
         WHERE agent_id=#{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        AND owner_user_id=#{ownerId,typeHandler=com.febridge.persistence.UuidTypeHandler}
         ORDER BY updated_at DESC, id LIMIT 100
     </select>
     <select id="session" resultType="map">
@@ -17,9 +19,10 @@
         SELECT * FROM chat_session WHERE <include refid="sessionFilter"/> FOR UPDATE
     </select>
     <insert id="createSession">
-        INSERT INTO chat_session(id,agent_id)
+        INSERT INTO chat_session(id,agent_id,owner_user_id)
         VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},
-               #{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler})
+               #{agentId,typeHandler=com.febridge.persistence.UuidTypeHandler},
+               #{ownerId,typeHandler=com.febridge.persistence.UuidTypeHandler})
     </insert>
     <select id="turns" resultType="map">
         SELECT * FROM (
@@ -33,6 +36,8 @@
             SELECT * FROM chat_turn
             WHERE session_id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
               AND status='completed'
+              AND sequence > COALESCE((SELECT covered_sequence FROM conversation_summary
+                  WHERE session_id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}),0)
             ORDER BY sequence DESC LIMIT 10
         ) recent ORDER BY sequence
     </select>

@@ -37,19 +37,24 @@ public class ModelRegistry {
 
     public List<Preset> presets() {
         return Arrays.stream(ProviderType.values())
-            .map(p -> new Preset(p, p.baseUrl(), p.suggestedModel()))
+            .map(p ->
+                new Preset(p, p.baseUrl(), p.suggestedModel(), p.label(), p.documentationUrl())
+            )
             .toList();
     }
 
     @Transactional
     public ProviderView createProvider(ProviderInput input) {
+        String url = normalizeBaseUrl(
+            input.baseUrl() == null ? input.providerType().baseUrl() : input.baseUrl()
+        );
         String key = cleanKey(input.apiKey());
         UUID id = UUID.randomUUID();
         mapper.insertProvider(
             id,
             input.name().strip(),
             input.providerType().name(),
-            input.providerType().baseUrl(),
+            url,
             cipher.encrypt(key),
             input.enabled()
         );
@@ -66,7 +71,11 @@ public class ModelRegistry {
             input.apiKey() == null || input.apiKey().isBlank()
                 ? row.get("api_key_ciphertext").toString()
                 : cipher.encrypt(cleanKey(input.apiKey()));
-        mapper.updateProvider(id, input.name().strip(), encrypted, input.enabled());
+        String url =
+            input.baseUrl() == null
+                ? row.get("base_url").toString()
+                : normalizeBaseUrl(input.baseUrl());
+        mapper.updateProvider(id, input.name().strip(), encrypted, input.enabled(), url);
         return providerView(providerRow(id));
     }
 
@@ -126,14 +135,10 @@ public class ModelRegistry {
     public Connection connection(UUID modelId) {
         var model = availableModel(modelId);
         var row = providerRow(model.providerId());
-        var type = ProviderType.valueOf(row.get("provider_type").toString());
-        // Only official endpoints are accepted, even if a database row was edited.
-        if (!type.baseUrl().equals(row.get("base_url"))) {
-            bad("提供商地址与官方地址不匹配");
-        }
+        String baseUrl = normalizeBaseUrl(row.get("base_url").toString());
         return new Connection(
             model,
-            type.baseUrl(),
+            baseUrl,
             cipher.decrypt(row.get("api_key_ciphertext").toString()),
             row.get("name").toString()
         );
@@ -144,6 +149,34 @@ public class ModelRegistry {
         public String toString() {
             return "ModelConnection[model=" + model.modelCode() + "]";
         }
+    }
+
+    public static String normalizeBaseUrl(String input) {
+        if (input == null || input.isBlank()) {
+            bad("请填写 API Base URL");
+        }
+        String url = input.strip().replaceAll("/+$", "");
+        if (url.endsWith("/chat/completions")) {
+            url = url.substring(0, url.length() - "/chat/completions".length());
+        }
+        try {
+            var uri = java.net.URI.create(url);
+            if (
+                uri.getScheme() == null ||
+                !Set.of("https", "http").contains(uri.getScheme()) ||
+                uri.getHost() == null ||
+                uri.getRawUserInfo() != null ||
+                uri.getRawQuery() != null ||
+                uri.getRawFragment() != null ||
+                uri.getPort() > 65535 ||
+                url.length() > 300
+            ) {
+                bad("API Base URL 必须是无凭证、无查询参数的 HTTP 或 HTTPS 地址");
+            }
+        } catch (IllegalArgumentException exception) {
+            bad("API Base URL 格式不正确");
+        }
+        return url;
     }
 
     public JsonNode parameters(JsonNode input) {

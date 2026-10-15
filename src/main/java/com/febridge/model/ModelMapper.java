@@ -20,7 +20,8 @@ public interface ModelMapper {
         @Param("id") UUID id,
         @Param("name") String name,
         @Param("cipher") String cipher,
-        @Param("enabled") boolean enabled
+        @Param("enabled") boolean enabled,
+        @Param("url") String url
     );
     List<Map<String, Object>> models();
     Map<String, Object> model(@Param("id") UUID id);

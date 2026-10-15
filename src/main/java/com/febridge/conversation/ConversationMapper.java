@@ -9,10 +9,25 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface ConversationMapper {
-    List<Map<String, Object>> sessions(@Param("agentId") UUID agentId);
-    Map<String, Object> session(@Param("id") UUID id, @Param("agentId") UUID agentId);
-    Map<String, Object> lockSession(@Param("id") UUID id, @Param("agentId") UUID agentId);
-    int createSession(@Param("id") UUID id, @Param("agentId") UUID agentId);
+    List<Map<String, Object>> sessions(
+        @Param("agentId") UUID agentId,
+        @Param("ownerId") UUID ownerId
+    );
+    Map<String, Object> session(
+        @Param("id") UUID id,
+        @Param("agentId") UUID agentId,
+        @Param("ownerId") UUID ownerId
+    );
+    Map<String, Object> lockSession(
+        @Param("id") UUID id,
+        @Param("agentId") UUID agentId,
+        @Param("ownerId") UUID ownerId
+    );
+    int createSession(
+        @Param("id") UUID id,
+        @Param("agentId") UUID agentId,
+        @Param("ownerId") UUID ownerId
+    );
     List<Map<String, Object>> turns(@Param("id") UUID id);
     List<Map<String, Object>> context(@Param("id") UUID id);
     Map<String, Object> turn(@Param("requestId") UUID requestId);

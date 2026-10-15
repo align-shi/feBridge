@@ -452,4 +452,38 @@ class ToolPersistenceTest {
             registry.authorized(agent.id(), first.alias())
         );
     }
+
+    @Autowired
+    com.febridge.user.UserService testUsers;
+
+    @org.junit.jupiter.api.BeforeEach
+    void authenticateTestUser() {
+        var user = testUsers.create(
+            new com.febridge.user.UserDtos.CreateUser(
+                "kb_reg_" + UUID.randomUUID().toString().substring(0, 18),
+                "回归测试用户",
+                "Test-password-12345",
+                com.febridge.user.UserDtos.Role.USER
+            )
+        );
+        var principal = com.febridge.security.SessionUser.from(testUsers.find(user.id()));
+        var auth =
+            org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(
+                principal,
+                null,
+                List.of(
+                    new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                        "ROLE_USER"
+                    )
+                )
+            );
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+            auth
+        );
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void clearTestAuthentication() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
 }

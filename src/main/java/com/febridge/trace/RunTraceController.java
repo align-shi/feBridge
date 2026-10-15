@@ -15,6 +15,7 @@ public class RunTraceController {
 
     @GetMapping("/api/agents/{id}/runs/{requestId}/events")
     public List<RunTrace.Event> events(@PathVariable UUID id, @PathVariable UUID requestId) {
+        trace.requireAccess(id, requestId);
         return trace.events(id, requestId);
     }
 }

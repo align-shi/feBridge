@@ -1,11 +1,16 @@
 package com.febridge.trace;
 
 import com.febridge.agent.AgentService;
+import com.febridge.security.SessionUser;
+import com.febridge.user.AuthController;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -44,8 +49,23 @@ public class RunTrace {
             requestId,
             kind,
             summary.length() > 300 ? summary.substring(0, 300) : summary,
-            value.toString()
+            value.toString(),
+            ownerId()
         );
+    }
+
+    private UUID ownerId() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof SessionUser user) {
+            return user.id();
+        }
+        return null;
+    }
+
+    public void requireAccess(UUID agentId, UUID requestId) {
+        if (mapper.ownedRequest(agentId, requestId, AuthController.current().id()) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "调用记录不存在");
+        }
     }
 
     public JsonNode snapshot(JsonNode value, int limit) {

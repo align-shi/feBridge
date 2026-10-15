@@ -31,6 +31,18 @@
     <select id="list" resultMap="user">
         SELECT <include refid="columns"/> FROM platform_user ORDER BY created_at DESC LIMIT 500
     </select>
+    <update id="claimLegacySessions">
+        UPDATE chat_session SET owner_user_id=(
+            SELECT id FROM platform_user WHERE role='ADMIN' AND enabled=TRUE
+            ORDER BY (username='admin') DESC,created_at,id LIMIT 1
+        ) WHERE owner_user_id IS NULL
+    </update>
+    <update id="claimLegacyEvents">
+        UPDATE agent_run_event SET owner_user_id=(
+            SELECT id FROM platform_user WHERE role='ADMIN' AND enabled=TRUE
+            ORDER BY (username='admin') DESC,created_at,id LIMIT 1
+        ) WHERE owner_user_id IS NULL
+    </update>
     <select id="count" resultType="int">SELECT COUNT(*) FROM platform_user</select>
     <select id="enabledAdmins" resultType="int">
         SELECT COUNT(*) FROM platform_user WHERE role='ADMIN' AND enabled=TRUE

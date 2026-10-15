@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.febridge.configuration.SkillResourceMapper">
+    <select id="resources" resultType="map">
+        SELECT * FROM skill_resource WHERE skill_id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        ORDER BY path
+    </select>
+    <delete id="clear">
+        DELETE FROM skill_resource WHERE skill_id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </delete>
+    <insert id="save">
+        INSERT INTO skill_resource(skill_id,path,content_base64,media_type,size_bytes)
+        VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},#{path},#{content},#{mediaType},#{size})
+    </insert>
+<select id="folders" resultType="string">SELECT name FROM skill_folder WHERE skill_id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler} ORDER BY name</select>
+<delete id="clearFolders">DELETE FROM skill_folder WHERE skill_id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}</delete>
+<insert id="saveFolder">INSERT INTO skill_folder(skill_id,name) VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},#{name})</insert>
+</mapper>

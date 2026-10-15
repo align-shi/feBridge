@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.febridge.memory.MemoryMapper">
+    <select id="summary" resultType="map">
+        SELECT * FROM conversation_summary
+        WHERE session_id=#{sessionId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+    </select>
+    <sql id="candidateFilter">
+        session_id=#{sessionId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+        AND status='completed' AND sequence > #{after} AND sequence &lt;= #{through}
+    </sql>
+    <select id="candidates" resultType="map">
+        SELECT id,sequence,user_content,assistant_content FROM chat_turn
+        WHERE <include refid="candidateFilter"/> ORDER BY sequence LIMIT 20
+    </select>
+    <select id="pending" resultType="long">
+        SELECT COUNT(*) FROM chat_turn WHERE <include refid="candidateFilter"/>
+    </select>
+    <insert id="save">
+        INSERT INTO conversation_summary(
+            session_id,content,covered_sequence,covered_turns,version,input_truncated,
+            model_name,prompt_tokens,completion_tokens,total_tokens,duration_millis
+        )
+        SELECT session.id,CAST(#{content} AS jsonb),#{through},#{coveredTurns},
+            #{expectedVersion}+1,#{truncated},#{model},#{usage.promptTokens},
+            #{usage.completionTokens},#{usage.totalTokens},#{duration}
+        FROM chat_session session
+        WHERE session.id=#{sessionId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+            AND session.owner_user_id=#{ownerId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+            AND session.active_request=#{requestId,typeHandler=com.febridge.persistence.UuidTypeHandler}
+            AND session.locked_until > CURRENT_TIMESTAMP
+            AND COALESCE((SELECT version FROM conversation_summary
+                WHERE session_id=session.id),0)=#{expectedVersion}
+        ON CONFLICT(session_id) DO UPDATE SET
+            content=EXCLUDED.content,covered_sequence=EXCLUDED.covered_sequence,
+            covered_turns=EXCLUDED.covered_turns,version=EXCLUDED.version,
+            input_truncated=EXCLUDED.input_truncated,model_name=EXCLUDED.model_name,
+            prompt_tokens=EXCLUDED.prompt_tokens,completion_tokens=EXCLUDED.completion_tokens,
+            total_tokens=EXCLUDED.total_tokens,duration_millis=EXCLUDED.duration_millis,
+            updated_at=CURRENT_TIMESTAMP
+        WHERE conversation_summary.version=#{expectedVersion}
+    </insert>
+</mapper>

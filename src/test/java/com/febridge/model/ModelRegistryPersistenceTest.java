@@ -117,4 +117,79 @@ class ModelRegistryPersistenceTest {
             registry.parameters(json.createObjectNode().put("temperature", 5))
         );
     }
+
+    @Test
+    void persistsAllProviderPresetsAndEditableEndpoints() {
+        assertEquals(ProviderType.values().length, registry.presets().size());
+        for (var type : ProviderType.values()) {
+            String url = type == ProviderType.CUSTOM ? "http://127.0.0.1:9000/v1" : type.baseUrl();
+            var provider = registry.createProvider(
+                new ProviderInput(type.label(), type, "dummy-key", true, url + "/")
+            );
+            assertEquals(url, provider.baseUrl());
+            assertEquals(type, provider.providerType());
+        }
+        var provider = registry.createProvider(
+            new ProviderInput(
+                "自定义",
+                ProviderType.CUSTOM,
+                "dummy-key",
+                true,
+                "https://gateway.example/v1/chat/completions"
+            )
+        );
+        assertEquals("https://gateway.example/v1", provider.baseUrl());
+        var updated = registry.updateProvider(
+            provider.id(),
+            new ProviderInput(
+                "更名",
+                ProviderType.CUSTOM,
+                "",
+                true,
+                "https://other.example/openai/v1/"
+            )
+        );
+        assertEquals("https://other.example/openai/v1", updated.baseUrl());
+        assertEquals(
+            "dummy-key",
+            cipher.decrypt(mapper.provider(provider.id()).get("api_key_ciphertext").toString())
+        );
+        updated = registry.updateProvider(
+            provider.id(),
+            new ProviderInput("旧接口更新", ProviderType.CUSTOM, "", true)
+        );
+        assertEquals("https://other.example/openai/v1", updated.baseUrl());
+        var customModel = registry.createModel(
+            new ModelInput(
+                provider.id(),
+                "custom-test",
+                "自定义模型",
+                true,
+                json.createObjectNode(),
+                true
+            )
+        );
+        assertEquals(
+            "https://other.example/openai/v1",
+            registry.connection(customModel.id()).baseUrl()
+        );
+    }
+
+    @Test
+    void rejectsInvalidBaseUrlsWithoutNetworkCalls() {
+        for (String url : java.util.List.of(
+            "",
+            "relative/path",
+            "file:///secret",
+            "https://user:secret@example.com/v1",
+            "https://example.com/v1?api_key=secret",
+            "https://example.com/v1#fragment",
+            "https://example.com:70000/v1"
+        )) {
+            assertThrows(ResponseStatusException.class, () -> ModelRegistry.normalizeBaseUrl(url));
+        }
+        assertThrows(ResponseStatusException.class, () ->
+            registry.createProvider(new ProviderInput("自定义", ProviderType.CUSTOM, "dummy", true))
+        );
+    }
 }

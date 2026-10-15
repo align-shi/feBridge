@@ -80,12 +80,12 @@ export function errorMessage(error: unknown): string {
   if (error instanceof TypeError) return '无法连接后端，请确认 Java 服务已启动并检查代理地址。'
   return error instanceof Error ? error.message : '请求失败，请稍后重试。'
 }
-export type ProviderType='DEEPSEEK'|'ZHIPU'
+export type ProviderType='DEEPSEEK'|'ZHIPU'|'QWEN'|'MOONSHOT'|'DOUBAO'|'SILICONFLOW'|'MINIMAX'|'OPENAI'|'GEMINI'|'OPENROUTER'|'GROQ'|'MISTRAL'|'XAI'|'CUSTOM'
 export interface Provider { id:string;name:string;providerType:ProviderType;baseUrl:string;keyConfigured:boolean;enabled:boolean;createdAt:string }
-export interface ProviderInput {name:string;providerType:ProviderType;apiKey:string;enabled:boolean}
+export interface ProviderInput {name:string;providerType:ProviderType;apiKey:string;enabled:boolean;baseUrl?:string}
 export interface ModelDefinition {id:string;providerId:string;modelCode:string;displayName:string;supportsTools:boolean;defaultParameters:Record<string,unknown>;enabled:boolean;createdAt:string}
 export type ModelInput=Omit<ModelDefinition,'id'|'createdAt'>
-export interface Preset {providerType:ProviderType;baseUrl:string;suggestedModel:string}
+export interface Preset {providerType:ProviderType;baseUrl:string;suggestedModel:string;label:string;documentationUrl:string}
 export interface ChatAnswer {content:string;model:string;provider:string;usage:{promptTokens:number|null;completionTokens:number|null;totalTokens:number|null};durationMillis:number}
 export const modelApi={
   testTools:(id:string)=>request<{passed:boolean;message:string;durationMillis:number}>('/api/models/'+id+'/test-tool-calling',{method:'POST'},75000),
@@ -102,6 +102,7 @@ export const modelApi={
 export interface Conversation {
   id: string
   agentId: string
+  ownerUserId: string
   title: string
   createdAt: string
   updatedAt: string
@@ -117,9 +118,22 @@ export interface ConversationMessage {
   createdAt: string
   answer: ChatAnswer | null
 }
+export interface ConversationMemoryView {
+  content: { goal?: string; confirmedFacts?: string[]; pendingQuestions?: string[]; references?: string[] }
+  coveredThroughSequence: string
+  coveredTurns: number
+  version: number
+  inputTruncated: boolean
+  model: string | null
+  usage: ChatAnswer['usage']
+  durationMillis: number | null
+  updatedAt: string | null
+  pendingTurns: number
+}
 export interface ConversationHistory {
   session: Conversation
   messages: ConversationMessage[]
+  memory: ConversationMemoryView | null
 }
 export const conversationApi = {
   list: (agentId: string, signal?: AbortSignal) =>
@@ -154,13 +168,17 @@ export const toolApi = {
   audits:(id:string,requestId:string)=>request<ToolAuditRecord[]>('/api/agents/'+id+'/tool-audits?requestId='+requestId),
 }
 
-export interface SkillInput { name:string; description:string; instructions:string; enabled:boolean }
+export interface SkillInput { code?:string; name:string; description:string; instructions:string; enabled:boolean }
 export interface Skill extends SkillInput { id:string }
+export interface SkillFile { path:string; contentBase64:string; mediaType:string; sizeBytes:number }
 export interface ExecutionRules { maxModelCalls:number; maxToolCalls:number; taskTimeoutSeconds:number; toolTimeoutSeconds:number; toolsEnabled:boolean; failurePolicy:'CONTINUE'|'STOP' }
 export const configApi = {
   profile:(id:string,input:Pick<Agent,'name'|'description'|'systemPrompt'>)=>request<Agent>('/api/agents/'+id+'/profile',{method:'PUT',body:JSON.stringify(input)}),
   skills:()=>request<Skill[]>('/api/skills'),
   saveSkill:(id:string|null,input:SkillInput)=>request<Skill>(id?'/api/skills/'+id:'/api/skills',{method:id?'PUT':'POST',body:JSON.stringify(input)}),
+  skillFolders:(id:string)=>request<string[]>("/api/skills/"+id+"/folders"),
+  skillResources:(id:string)=>request<SkillFile[]>("/api/skills/"+id+"/resources"),
+  saveSkillPackage:(id:string|null,skill:SkillInput,resources:SkillFile[],folders?:string[])=>request<Skill>(id?"/api/skills/"+id+"/package":"/api/skills/packages",{method:id?"PUT":"POST",body:JSON.stringify({skill,resources,folders})}),
   boundSkills:(id:string)=>request<Skill[]>('/api/agents/'+id+'/skills'),
   bindSkills:(id:string,skillIds:string[])=>request<Skill[]>('/api/agents/'+id+'/skills',{method:'PUT',body:JSON.stringify({skillIds})}),
   rules:(id:string)=>request<ExecutionRules>('/api/agents/'+id+'/execution-rules'),
@@ -203,4 +221,79 @@ export const userApi = {
     request<PlatformUser>('/api/users/' + id, { method: 'PUT', body: JSON.stringify(input) }),
   reset: (id: string, password: string) =>
     request('/api/users/' + id + '/password', { method: 'POST', body: JSON.stringify({ password }) }),
+}
+
+export interface LongMemoryItem {
+  id: string
+  category: string
+  memory_key: string
+  content: string
+  evidence: string | null
+  source_session: string | null
+  enabled: boolean
+  manual: boolean
+  version: number
+  expires_at: string | null
+}
+export type MemoryMode = 'NONE' | 'CONTEXT' | 'CROSS_SESSION'
+export interface LongMemoryView {
+  mode: MemoryMode
+  enabled: boolean
+  items: LongMemoryItem[]
+  jobs: { request_id: string; status: string; created_at: string; total_tokens: number | null; error_message: string | null }[]
+}
+const memoryPath = (agent: string) => '/api/agents/' + encodeURIComponent(agent) + '/long-memory'
+type LongMemoryEdit = { content: string; enabled: boolean; expiresAt: string | null; version: number }
+export const agentMemoryApi = {
+  get: (agent: string, signal?: AbortSignal) => request<{ mode: MemoryMode }>('/api/agents/' + encodeURIComponent(agent) + '/memory-mode', { signal }),
+  set: (agent: string, mode: MemoryMode) => request<void>('/api/agents/' + encodeURIComponent(agent) + '/memory-mode', { method: 'PUT', body: JSON.stringify({ mode }) }),
+}
+export const longMemoryApi = {
+  mode: (agent: string, mode: MemoryMode) => request<void>(memoryPath(agent) + '/mode', { method: 'PUT', body: JSON.stringify({ mode }) }),
+  get: (agent: string, signal?: AbortSignal) => request<LongMemoryView>(memoryPath(agent), { signal }),
+  policy: (agent: string, enabled: boolean) => request<void>(memoryPath(agent) + '/policy', { method: 'PUT', body: JSON.stringify({ enabled }) }),
+  create: (agent: string, input: Omit<LongMemoryEdit, 'version'> & { category: string; key: string }) => request<void>(memoryPath(agent), { method: 'POST', body: JSON.stringify(input) }),
+  edit: (agent: string, id: string, input: LongMemoryEdit) => request<void>(memoryPath(agent) + '/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(input) }),
+  remove: (agent: string, item: LongMemoryItem) => request<void>(memoryPath(agent) + '/' + encodeURIComponent(item.id), { method: 'DELETE', body: JSON.stringify({ content: item.content, enabled: false, expiresAt: item.expires_at, version: item.version }) }),
+}
+
+export interface KnowledgeBase {
+  id: string
+  owner_id: string
+  name: string
+  description: string
+  visibility: 'PRIVATE' | 'SHARED'
+  editable?: boolean
+  documents?: number
+}
+export interface KnowledgeDocument {
+  id: string
+  name: string
+  status: 'pending' | 'processing' | 'ready' | 'failed' | 'deleting' | 'delete_failed'
+  chunk_count: number
+  error_message: string | null
+  embedding_space: string
+}
+export interface KnowledgeHit {
+  citation: string
+  knowledgeBaseId: string
+  knowledgeBaseName: string
+  documentId: string
+  documentName: string
+  chunkId: string
+  ordinal: number
+  content: string
+  score: number
+}
+const knowledgePath = (id: string) => '/api/knowledge-bases/' + encodeURIComponent(id)
+export const knowledgeApi = {
+  list: (signal?: AbortSignal) => request<KnowledgeBase[]>('/api/knowledge-bases', { signal }),
+  create: (input: { name: string; description: string; visibility: string }) => request<KnowledgeBase>('/api/knowledge-bases', { method: 'POST', body: JSON.stringify(input) }),
+  documents: (id: string, signal?: AbortSignal) => request<KnowledgeDocument[]>(knowledgePath(id) + '/documents', { signal }),
+  upload: (id: string, name: string, content: string) => request<{ id: string }>(knowledgePath(id) + '/documents', { method: 'POST', body: JSON.stringify({ name, content }) }),
+  retry: (id: string, document: string) => request<void>(knowledgePath(id) + '/documents/' + encodeURIComponent(document) + '/retry', { method: 'POST' }),
+  remove: (id: string, document: string) => request(knowledgePath(id) + '/documents/' + encodeURIComponent(document), { method: 'DELETE' }),
+  search: (id: string, query: string, limit: number) => request<KnowledgeHit[]>(knowledgePath(id) + '/search', { method: 'POST', body: JSON.stringify({ query, limit }) }, 35000),
+  bound: (id: string) => request<KnowledgeBase[]>('/api/agents/' + encodeURIComponent(id) + '/knowledge-bases'),
+  bind: (id: string, knowledgeBaseIds: string[]) => request<KnowledgeBase[]>('/api/agents/' + encodeURIComponent(id) + '/knowledge-bases', { method: 'PUT', body: JSON.stringify({ knowledgeBaseIds }) }),
 }

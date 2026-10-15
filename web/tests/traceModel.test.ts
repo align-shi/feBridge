@@ -80,3 +80,33 @@ test('ended conversation with no terminal event is interrupted, not running fore
   assert.equal(trace.duration, 100)
   assert.equal(trace.nodes[1].status, 'interrupted')
 })
+
+test('summary usage is counted once and paired separately from dialogue', () => {
+  const trace = buildTrace([
+    event(1, 'RUN_STARTED'),
+    event(2, 'SUMMARY_REQUEST', { input: { olderTurns: [] } }),
+    event(3, 'SUMMARY_RESPONSE', { saved: true, content: { goal: '查询模具' }, durationMillis: 50,
+      usage: { promptTokens: 20, completionTokens: 5, totalTokens: 25 } }),
+    event(4, 'MODEL_REQUEST', { step: 1 }),
+    event(5, 'MODEL_RESPONSE', { step: 1, usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 } }),
+    event(6, 'RUN_COMPLETED', { usage: { totalTokens: 40 } }),
+  ])
+  assert.equal(trace.modelCalls, 2)
+  assert.equal(trace.usage.total, 40)
+  assert.equal(trace.nodes.find(node => node.type === 'memory')?.duration, 50)
+  assert.deepEqual(trace.nodes.find(node => node.type === 'memory')?.eventIds, ['2', '3'])
+  assert.equal(trace.nodes.find(node => node.type === 'model')?.name, '模型调用 #1')
+})
+
+test('failed summary retains billed usage while dialogue can complete', () => {
+  const trace = buildTrace([
+    event(1, 'RUN_STARTED'), event(2, 'SUMMARY_REQUEST'),
+    event(3, 'SUMMARY_FAILED', { usage: { totalTokens: 10 } }),
+    event(4, 'MODEL_REQUEST', { step: 1 }),
+    event(5, 'MODEL_RESPONSE', { step: 1, usage: { totalTokens: 15 } }),
+    event(6, 'RUN_COMPLETED'),
+  ])
+  assert.equal(trace.status, 'completed')
+  assert.equal(trace.nodes.find(node => node.type === 'memory')?.status, 'failed')
+  assert.equal(trace.usage.total, 25)
+})

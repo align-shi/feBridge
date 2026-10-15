@@ -10,7 +10,7 @@
         VALUES(#{id,typeHandler=com.febridge.persistence.UuidTypeHandler},#{name},#{type},#{url},#{cipher},#{enabled})
     </insert>
     <update id="updateProvider">
-        UPDATE model_provider SET name=#{name},api_key_ciphertext=#{cipher},enabled=#{enabled}
+        UPDATE model_provider SET name=#{name},api_key_ciphertext=#{cipher},enabled=#{enabled},base_url=#{url}
         WHERE id=#{id,typeHandler=com.febridge.persistence.UuidTypeHandler}
     </update>
     <select id="models" resultType="map">SELECT * FROM model_definition ORDER BY created_at DESC,id</select>

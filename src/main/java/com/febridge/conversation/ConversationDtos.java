@@ -15,6 +15,7 @@ public final class ConversationDtos {
     public record Session(
         UUID id,
         UUID agentId,
+        UUID ownerUserId,
         String title,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
@@ -37,7 +38,11 @@ public final class ConversationDtos {
         Answer answer
     ) {}
 
-    public record History(Session session, List<Message> messages) {}
+    public record History(
+        Session session,
+        List<Message> messages,
+        com.febridge.memory.MemoryDtos.View memory
+    ) {}
 
     public record TurnResult(UUID requestId, Answer answer) {}
 }

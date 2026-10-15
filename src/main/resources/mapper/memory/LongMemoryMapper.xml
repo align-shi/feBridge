@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.febridge.memory.LongMemoryMapper">
+    <sql id="scope">owner_id=CAST(#{owner} AS uuid) AND agent_id=CAST(#{agent} AS uuid)</sql>
+    <insert id="ensure">
+        INSERT INTO agent_memory_policy(agent_id)
+        VALUES(CAST(#{agent} AS uuid)) ON CONFLICT DO NOTHING
+    </insert>
+    <select id="policy" resultType="map">
+        SELECT * FROM agent_memory_policy WHERE agent_id=CAST(#{agent} AS uuid)
+    </select>
+    <select id="lockPolicy" resultType="map">
+        SELECT * FROM agent_memory_policy WHERE agent_id=CAST(#{agent} AS uuid) FOR UPDATE
+    </select>
+    <update id="setPolicy">
+        UPDATE agent_memory_policy SET enabled=#{enabled},mode=#{mode},generation=generation+1
+        WHERE agent_id=CAST(#{agent} AS uuid)
+        AND NOT EXISTS (SELECT 1 FROM chat_session s
+            WHERE s.agent_id=CAST(#{agent} AS uuid)
+            AND s.active_request IS NOT NULL AND s.locked_until > CURRENT_TIMESTAMP)
+    </update>
+    <select id="entries" resultType="map">
+        SELECT * FROM long_memory WHERE <include refid="scope"/> AND NOT deleted
+        ORDER BY updated_at DESC,id LIMIT 200
+    </select>
+    <insert id="manualSave">
+        INSERT INTO long_memory(id,owner_id,agent_id,category,memory_key,content,manual,enabled,expires_at)
+        VALUES(CAST(#{id} AS uuid),CAST(#{owner} AS uuid),CAST(#{agent} AS uuid),
+            #{category},#{key},#{content},TRUE,#{enabled},CAST(#{expires} AS timestamptz))
+        ON CONFLICT(owner_id,agent_id,memory_key) DO NOTHING
+    </insert>
+    <update id="change">
+        UPDATE long_memory SET content=CASE WHEN #{deleted} THEN '' ELSE #{content} END,
+            evidence=CASE WHEN #{deleted} THEN NULL ELSE evidence END,
+            source_session=CASE WHEN #{deleted} THEN NULL ELSE source_session END,
+            source_request=CASE WHEN #{deleted} THEN NULL ELSE source_request END,
+            enabled=#{enabled},deleted=#{deleted},
+            expires_at=CAST(#{expires} AS timestamptz),manual=TRUE,version=version+1,
+            updated_at=CURRENT_TIMESTAMP
+        WHERE <include refid="scope"/> AND id=CAST(#{id} AS uuid)
+            AND version=#{version} AND NOT deleted
+    </update>
+    <insert id="enqueue">
+        INSERT INTO long_memory_job(request_id,owner_id,agent_id,session_id,source_order,generation)
+        SELECT turn.id,session.owner_user_id,session.agent_id,session.id,turn.sequence,policy.generation
+        FROM chat_turn turn JOIN chat_session session ON session.id=turn.session_id
+        JOIN agent_memory_policy policy ON policy.agent_id=session.agent_id AND policy.enabled
+        WHERE turn.id=CAST(#{request} AS uuid) AND turn.status='completed'
+            AND session.owner_user_id=CAST(#{owner} AS uuid)
+            AND session.agent_id=CAST(#{agent} AS uuid)
+        ON CONFLICT DO NOTHING
+    </insert>
+    <select id="claim" resultType="map" affectData="true" flushCache="true">
+        UPDATE long_memory_job SET status='running',claim=CAST(#{claim} AS uuid),
+            attempts=attempts+1,leased_until=CURRENT_TIMESTAMP+INTERVAL '90 seconds'
+        WHERE request_id=(
+            SELECT request_id FROM long_memory_job
+            WHERE status='pending' OR (status='running' AND leased_until &lt; CURRENT_TIMESTAMP)
+            ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1
+        ) RETURNING *
+    </select>
+    <select id="source" resultType="map">
+        SELECT turn.user_content,user_account.enabled AS user_enabled
+        FROM chat_turn turn JOIN chat_session session ON session.id=turn.session_id
+        JOIN platform_user user_account ON user_account.id=session.owner_user_id
+        WHERE turn.id=CAST(#{request} AS uuid) AND session.owner_user_id=CAST(#{owner} AS uuid)
+            AND session.agent_id=CAST(#{agent} AS uuid) AND turn.status='completed'
+    </select>
+    <insert id="automaticSave">
+        INSERT INTO long_memory(id,owner_id,agent_id,category,memory_key,content,evidence,
+            source_session,source_request,source_order)
+        VALUES(CAST(#{id} AS uuid),CAST(#{owner} AS uuid),CAST(#{agent} AS uuid),
+            #{category},#{key},#{content},#{evidence},CAST(#{session} AS uuid),
+            CAST(#{request} AS uuid),#{sourceOrder})
+        ON CONFLICT(owner_id,agent_id,memory_key) DO UPDATE SET
+            category=EXCLUDED.category,content=EXCLUDED.content,evidence=EXCLUDED.evidence,
+            source_session=EXCLUDED.source_session,source_request=EXCLUDED.source_request,
+            source_order=EXCLUDED.source_order,version=long_memory.version+1,
+            updated_at=CURRENT_TIMESTAMP
+        WHERE NOT long_memory.manual AND NOT long_memory.deleted AND long_memory.enabled
+            AND long_memory.source_order &lt; EXCLUDED.source_order
+    </insert>
+    <update id="finishJob">
+        UPDATE long_memory_job SET status=#{status},model_name=#{model},
+            prompt_tokens=#{prompt},completion_tokens=#{completion},total_tokens=#{total},
+            error_message=#{error},completed_at=CURRENT_TIMESTAMP,leased_until=NULL
+        WHERE request_id=CAST(#{request} AS uuid) AND claim=CAST(#{claim} AS uuid)
+            AND status='running' AND leased_until > CURRENT_TIMESTAMP
+    </update>
+    <select id="jobs" resultType="map">
+        SELECT request_id,session_id,status,attempts,model_name,prompt_tokens,completion_tokens,
+            total_tokens,error_message,created_at,completed_at
+        FROM long_memory_job WHERE <include refid="scope"/> ORDER BY created_at DESC LIMIT 10
+    </select>
+</mapper>

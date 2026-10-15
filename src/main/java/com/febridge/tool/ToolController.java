@@ -12,9 +12,11 @@ import org.springframework.web.bind.annotation.*;
 public class ToolController {
 
     private final ToolRegistry registry;
+    private final com.febridge.trace.RunTrace trace;
 
-    public ToolController(ToolRegistry registry) {
+    public ToolController(ToolRegistry registry, com.febridge.trace.RunTrace trace) {
         this.registry = registry;
+        this.trace = trace;
     }
 
     @GetMapping("/mcp/servers")
@@ -67,6 +69,7 @@ public class ToolController {
 
     @GetMapping("/agents/{id}/tool-audits")
     public List<AuditView> audits(@PathVariable UUID id, @RequestParam UUID requestId) {
+        trace.requireAccess(id, requestId);
         return registry.audits(id, requestId);
     }
 }

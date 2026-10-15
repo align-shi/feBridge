@@ -4,7 +4,7 @@ import { modelApi, errorMessage } from './api'
 import type { Provider, ProviderInput, ModelDefinition, ModelInput, Preset } from './api'
 import { useErrorState } from './ErrorNotice'
 
-const providerLabel = { DEEPSEEK: 'DeepSeek', ZHIPU: '智谱' }
+const providerLabel: Record<ProviderInput["providerType"], string> = {"DEEPSEEK":"DeepSeek","ZHIPU":"智谱","QWEN":"通义千问 / 阿里云百炼","MOONSHOT":"Kimi / 月之暗面","DOUBAO":"豆包 / 火山方舟","SILICONFLOW":"硅基流动","MINIMAX":"MiniMax（国际站）","OPENAI":"OpenAI","GEMINI":"Google Gemini","OPENROUTER":"OpenRouter","GROQ":"Groq","MISTRAL":"Mistral AI","XAI":"xAI / Grok","CUSTOM":"自定义 OpenAI 兼容服务"}
 
 function providerFromUrl() {
   return window.location.hash.match(/^#\/models\/([0-9a-f-]{36})$/i)?.[1] || ''
@@ -121,7 +121,7 @@ export default function ModelManager() {
     {notice && <div className="notice" role="status">{notice}</div>}
     {!providerId ? <>
       {loading && !providers.length && <p className="helper">正在加载供应商…</p>}
-      {!loading && !providers.length && !error && <div className="empty"><h2>添加第一个模型供应商</h2><p>配置 DeepSeek 或智谱的 API Key，再添加模型定义。</p></div>}
+      {!loading && !providers.length && !error && <div className="empty"><h2>添加第一个模型供应商</h2><p>选择供应商并配置 API Key，再添加模型定义。</p></div>}
       <div className="provider-grid">{providers.map(item => <button className="provider-card" key={item.id} onClick={() => openProvider(item.id)}>
         <div className="provider-card-top"><span className="provider-avatar">{providerLabel[item.providerType].slice(0, 1)}</span><span className={'provider-state ' + (item.enabled ? 'enabled' : '')}>{item.enabled ? '已启用' : '已停用'}</span></div>
         <h2>{item.name}</h2><p>{providerLabel[item.providerType]}</p>
@@ -174,7 +174,7 @@ export default function ModelManager() {
 function ProviderEditor({ provider, presets, onClose, onSaved }: {
   provider: Provider | null; presets: Preset[]; onClose: () => void; onSaved: (provider: Provider) => void
 }) {
-  const [draft, setDraft] = useState<ProviderInput>({ name: provider?.name || '', providerType: provider?.providerType || 'DEEPSEEK', apiKey: '', enabled: provider?.enabled ?? true })
+  const [draft, setDraft] = useState<ProviderInput>({ name: provider?.name || '', providerType: provider?.providerType || 'DEEPSEEK', apiKey: '', baseUrl: provider?.baseUrl || presets.find(item => item.providerType === 'DEEPSEEK')?.baseUrl || 'https://api.deepseek.com', enabled: provider?.enabled ?? true })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useErrorState()
   async function save(event: FormEvent) {
@@ -190,8 +190,16 @@ function ProviderEditor({ provider, presets, onClose, onSaved }: {
   return <EditorDialog title={provider ? '编辑供应商' : '新增供应商'} busy={saving} onClose={onClose}>
     <form className="create-form registry-editor-form" onSubmit={save}><fieldset disabled={saving}>
       <label>供应商名称<input autoFocus required maxLength={100} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></label>
-      <label>厂商<select disabled={!!provider} value={draft.providerType} onChange={e => setDraft({ ...draft, providerType: e.target.value as ProviderInput['providerType'] })}><option value="DEEPSEEK">DeepSeek</option><option value="ZHIPU">智谱</option></select></label>
-      <p className="helper">{provider?.baseUrl || presets.find(item => item.providerType === draft.providerType)?.baseUrl}</p>
+      <label>厂商<select disabled={!!provider} value={draft.providerType} onChange={e => {
+        const type = e.target.value as ProviderInput['providerType']
+        setDraft({ ...draft, providerType: type, baseUrl: presets.find(item => item.providerType === type)?.baseUrl || '' })
+      }}>{presets.map(item => <option key={item.providerType} value={item.providerType}>{item.label || providerLabel[item.providerType]}</option>)}</select></label>
+      <label>API Base URL<input required type="url" maxLength={300} value={draft.baseUrl || ''}
+        placeholder="https://your-service.example/v1" onChange={e => setDraft({ ...draft, baseUrl: e.target.value })} /></label>
+      <p className="helper">选择厂商后自动填写地址，可按账号地域调整。填写 API 基础地址，平台会拼接 /chat/completions。</p>
+      {presets.find(item => item.providerType === draft.providerType)?.documentationUrl && <p className="helper">
+        <a href={presets.find(item => item.providerType === draft.providerType)!.documentationUrl} target="_blank" rel="noreferrer">查看官方 API 文档 ↗</a>
+      </p>}
       <label>API Key<input type="password" required={!provider} maxLength={4096} autoComplete="new-password" value={draft.apiKey} placeholder={provider ? '留空保留已有密钥' : '请输入 API Key'} onChange={e => setDraft({ ...draft, apiKey: e.target.value })} /></label>
       <label className="checkbox"><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} />启用供应商</label>
       {error && <div className="error" role="alert">{error}</div>}

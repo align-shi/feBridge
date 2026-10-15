@@ -1,3 +1,7 @@
+import LongTermMemory from './LongTermMemory'
+import type { MemoryMode } from './api'
+import ConversationMemory from './ConversationMemory'
+import { useCurrentUser } from './CurrentUser'
 import { useErrorState } from './ErrorNotice'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
@@ -7,14 +11,17 @@ import type { Agent, Conversation, ConversationHistory } from './api'
 
 export default function ChatWorkspace({
   agent,
+  memoryMode,
   disabled,
   onBusy,
 }: {
   agent: Agent
+  memoryMode: MemoryMode | null
   disabled: boolean
   onBusy: (busy: boolean) => void
 }) {
-  const storageKey = `febridge:last-session:${agent.id}`
+  const user = useCurrentUser()
+  const storageKey = `febridge:last-session:${user.id}:${agent.id}`
   const [sessions, setSessions] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState('')
   const [history, setHistory] = useState<ConversationHistory | null>(null)
@@ -130,7 +137,7 @@ export default function ChatWorkspace({
 
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (busy || disabled || historyLoading || !agent.modelId || !draft.trim()) return
+    if (busy || disabled || !memoryMode || historyLoading || !agent.modelId || !draft.trim()) return
     const question = draft
     const requestId = crypto.randomUUID()
     pendingRequest.current = requestId
@@ -151,9 +158,10 @@ export default function ChatWorkspace({
         session: {
           ...(previous?.session.id === id
             ? previous.session
-            : { id, agentId: agent.id, title: question.slice(0, 40), createdAt: now, updatedAt: now }),
+            : { id, agentId: agent.id, ownerUserId: user.id, title: question.slice(0, 40), createdAt: now, updatedAt: now }),
           generating: true,
         },
+        memory: previous?.session.id === id ? previous.memory : null,
         messages: [
           ...(previous?.session.id === id ? previous.messages : []),
           { id: requestId + ':user', requestId, role: 'user', content: question, status: 'completed', error: null, createdAt: now, answer: null },
@@ -200,7 +208,7 @@ export default function ChatWorkspace({
           <small>{new Date(session.updatedAt).toLocaleDateString('zh-CN')}</small>
         </button>)}
       </div>
-      <p className="session-note">会话独立保存，新会话不携带其他会话的上下文。</p>
+      <p className="session-note">仅显示你的会话。新会话是否使用长期记忆，由记忆模式决定。</p>
     </aside>
     <div className="chat-main">
       <div className="chat-heading">
@@ -210,6 +218,8 @@ export default function ChatWorkspace({
           setRevision(value => value + 1)
         }}>刷新记录</button>
       </div>
+      {activeId && memoryMode !== null && memoryMode !== 'NONE' && <ConversationMemory memory={currentHistory?.memory ?? null} />}
+      {memoryMode && <LongTermMemory key={agent.id} agentId={agent.id} mode={memoryMode} disabled={busy || disabled} />}
       <div ref={messageList} className="message-list" aria-label="对话消息" aria-live="polite">
         {historyLoading && messages.length === 0 && <p className="helper">正在加载消息…</p>}
         {!historyLoading && messages.length === 0 && <div className="chat-empty"><span>◈</span><h3>你好，有什么可以帮你？</h3><p>输入问题开始对话，消息会自动保存。</p></div>}
@@ -236,7 +246,7 @@ export default function ChatWorkspace({
           maxLength={32000}
           rows={3}
           value={draft}
-          disabled={busy || disabled || !agent.modelId || loading}
+          disabled={busy || disabled || !memoryMode || !agent.modelId || loading}
           onChange={event => setDraft(event.target.value)}
           onKeyDown={event => {
             if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) {
@@ -245,9 +255,9 @@ export default function ChatWorkspace({
             }
           }}
         />
-        <div className="composer-footer"><small>上下文携带最近 10 轮成功对话，历史内容最多 24,000 字符。</small><button
+        <div className="composer-footer"><small>{memoryMode === 'NONE' ? '无记忆：仅发送本次问题，历史记录仍会保存。' : memoryMode === 'CROSS_SESSION' ? '使用当前会话上下文及相关长期记忆。' : '仅使用当前会话上下文，不读取或记录长期记忆。'}</small><button
           className="button primary"
-          disabled={busy || disabled || !agent.modelId || !draft.trim() || loading || historyLoading}
+          disabled={busy || disabled || !memoryMode || !agent.modelId || !draft.trim() || loading || historyLoading}
         >{sending || generating ? '生成中…' : '发送消息 ↑'}</button></div>
       </form>
     </div>

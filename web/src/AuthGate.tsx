@@ -1,3 +1,4 @@
+import { CurrentUserContext } from './CurrentUser'
 import BrandLogo from './BrandLogo'
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
@@ -35,7 +36,7 @@ export default function AuthGate({ children }: {
     return () => window.removeEventListener('febridge:auth-expired', expired)
   }, [])
   if (checking) return <div className="auth-loading">正在验证登录状态…</div>
-  if (user) return children(user, setUser, signedOut)
+  if (user) return <CurrentUserContext.Provider value={user}>{children(user, setUser, signedOut)}</CurrentUserContext.Provider>
   return <LoginPage initialError={error} notice={notice} onLogin={setUser} onRetry={() => setRevision(v => v + 1)} />
 }
 

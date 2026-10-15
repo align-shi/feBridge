@@ -10,7 +10,7 @@ export interface TraceNode {
   id: string
   eventIds: string[]
   parentId: string | null
-  type: 'agent' | 'context' | 'model' | 'tool' | 'event'
+  type: 'agent' | 'context' | 'model' | 'tool' | 'memory' | 'event'
   name: string
   action: string
   status: NodeStatus
@@ -70,6 +70,8 @@ export function buildTrace(events: RunEvent[], now = Date.now(), active = true):
   }
   nodes.push(root)
   let lastModel: TraceNode | undefined
+  let summaryNode: TraceNode | undefined
+  let dialogueCalls = 0
   let modelCalls = 0
   let toolCalls = 0
   const modelByStep = new Map<string, TraceNode>()
@@ -77,7 +79,35 @@ export function buildTrace(events: RunEvent[], now = Date.now(), active = true):
   for (const event of events) {
     const data = event.details
     const timestamp = time(event)
-    if (event.kind === 'CONTEXT_PREPARED') {
+    if (event.kind === 'SUMMARY_REQUEST') {
+      modelCalls++
+      summaryNode = {
+        id: event.id, eventIds: [event.id], parentId: root.id, type: 'memory',
+        name: '生成会话摘要', action: event.summary, status: 'running',
+        start: timestamp, end: null, duration: null, usage: emptyUsage(),
+        input: data.input ?? null, output: null, metadata: data,
+      }
+      nodes.push(summaryNode)
+    } else if (event.kind === 'SUMMARY_RESPONSE' || event.kind === 'SUMMARY_FAILED') {
+      if (summaryNode) {
+        summaryNode.eventIds.push(event.id)
+        summaryNode.end = timestamp
+        summaryNode.duration = number(data.durationMillis) ?? Math.max(0, timestamp - summaryNode.start)
+        summaryNode.usage = tokens(data.usage)
+        summaryNode.status = event.kind === 'SUMMARY_FAILED' || data.error === true ? 'failed' : 'completed'
+        summaryNode.action = event.summary
+        summaryNode.output = data.content ?? { message: event.summary }
+        summaryNode.metadata = { ...summaryNode.metadata, saved: data.saved, pendingTurns: data.pendingTurns }
+      }
+    } else if (event.kind === 'MEMORY_LOADED' || event.kind === 'MEMORY_NOTICE') {
+      nodes.push({
+        id: event.id, eventIds: [event.id], parentId: root.id, type: 'context',
+        name: event.kind === 'MEMORY_LOADED' ? '读取会话记忆' : '记忆更新提示',
+        action: event.summary, status: data.error === true ? 'failed' : 'completed',
+        start: timestamp, end: timestamp, duration: 0, usage: emptyUsage(),
+        input: null, output: data.content ?? data, metadata: data,
+      })
+    } else if (event.kind === 'CONTEXT_PREPARED') {
       const duration = number(data.durationMillis)
       nodes.push({
         id: event.id, eventIds: [event.id], parentId: root.id, type: 'context', name: '准备上下文',
@@ -89,9 +119,10 @@ export function buildTrace(events: RunEvent[], now = Date.now(), active = true):
       root.metadata = { model: data.model, skills: data.skills, rules: data.rules }
     } else if (event.kind === 'MODEL_REQUEST') {
       modelCalls++
+      dialogueCalls++
       lastModel = {
         id: event.id, eventIds: [event.id], parentId: root.id, type: 'model',
-        name: '模型调用 #' + (data.step ?? modelCalls),
+        name: '模型调用 #' + (data.step ?? dialogueCalls),
         action: event.summary, status: 'running', start: timestamp, end: null,
         duration: null, usage: emptyUsage(),
         input: data.messages ?? null, output: null, metadata: data,
@@ -147,7 +178,7 @@ export function buildTrace(events: RunEvent[], now = Date.now(), active = true):
       }
     }
   }
-  const models = nodes.filter(node => node.type === 'model')
+  const models = nodes.filter(node => node.type === 'model' || node.type === 'memory')
   const usage = {
     input: sum(models.map(node => node.usage.input)),
     output: sum(models.map(node => node.usage.output)),

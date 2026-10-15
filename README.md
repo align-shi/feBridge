@@ -119,8 +119,12 @@ npm run build --prefix web
 
 ## 使用说明
 
+- [Python Embeddings 服务](embedding-service/README.md)
+- [模型供应商与官方地址](docs/model-providers.md)
 - [用户与角色](docs/users-and-roles.md)
+- [当前会话记忆与归属](docs/conversation-memory.md)
 - [提示词、Skills 与执行规则](docs/agent-configuration.md)
+- [渐进式 Skills 与资源文件](docs/progressive-skills.md)
 - [MCP 与 ReAct](docs/mcp-tools.md)
 - [调用轨迹与用量统计](docs/observability.md)
 - [前端工作台](web/README.md)
@@ -140,3 +144,7 @@ docs/                       功能说明与品牌资产
 ## License
 
 [MIT](LICENSE)
+
+跨会话长期记忆的使用范围、自动提取句式及接口说明见 [长期记忆](docs/long-term-memory.md)。
+
+知识库的文档上传、向量检索和智能体绑定使用说明见 [知识库](docs/knowledge-base.md)。

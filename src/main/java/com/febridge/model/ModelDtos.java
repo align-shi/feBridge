@@ -13,8 +13,18 @@ public final class ModelDtos {
         @NotBlank @Size(max = 100) String name,
         @NotNull ProviderType providerType,
         @Size(max = 4096) String apiKey,
-        boolean enabled
+        boolean enabled,
+        @Size(max = 300) String baseUrl
     ) {
+        public ProviderInput(
+            String name,
+            ProviderType providerType,
+            String apiKey,
+            boolean enabled
+        ) {
+            this(name, providerType, apiKey, enabled, null);
+        }
+
         @Override
         public String toString() {
             return "ProviderInput[apiKey=REDACTED]";
@@ -31,7 +41,13 @@ public final class ModelDtos {
         OffsetDateTime createdAt
     ) {}
 
-    public record Preset(ProviderType providerType, String baseUrl, String suggestedModel) {}
+    public record Preset(
+        ProviderType providerType,
+        String baseUrl,
+        String suggestedModel,
+        String label,
+        String documentationUrl
+    ) {}
 
     public record ModelInput(
         @NotNull UUID providerId,

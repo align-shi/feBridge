@@ -1,0 +1,1 @@
+"""feBridge text embeddings service."""
